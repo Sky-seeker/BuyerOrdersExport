@@ -487,7 +487,7 @@ function processOrderList(order) {
         const date = isExist[1];
         const id = order.querySelector("div[data-id]").getAttribute("data-id");
 
-        let index = 0;
+        var index = 0;
 
         var ShopNameQuery = null;
         var picUrlQuery = null;
@@ -500,14 +500,16 @@ function processOrderList(order) {
         var refundQuery = null;
         var actualFeeQuery = null;
         var statusQuery = null;
-        var DetailUrlQuery = null;
+        var DetailUrlQuery1 = null;
+        var DetailUrlQuery2 = null;
 
         while (true) {
             if (index === 0) {
                 ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
                 actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
                 statusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0']");
-                DetailUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0']");
+                DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0']");
+                DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0']");
             }
 
             picUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0']");
@@ -564,7 +566,7 @@ function processOrderList(order) {
             var subOrdersRefund = refundQuery === null ? "" : refundQuery.innerText === "查看退款" ? "退款" : "";
             var payInfoActualFee = actualFeeQuery === null ? "" : actualFeeQuery.textContent;
             var statusInfoStatus = statusQuery === null ? "" : statusQuery.textContent;
-            var statusInfoDetailUrl = DetailUrlQuery === null ? "" : DetailUrlQuery.href;
+            var statusInfoDetailUrl = DetailUrlQuery1 === null ? (DetailUrlQuery2 === null ? "" : DetailUrlQuery2.href) : DetailUrlQuery1.href;
 
             var subOrdersSnapshotProductName = null;
 
