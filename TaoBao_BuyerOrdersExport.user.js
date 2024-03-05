@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.0.1
+// @version      1.0.2
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括订单编号、下单日期、店铺名称、商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、退款状态、订单实付款、订单交易状态、订单详情链接、快照商品名称，导出的订单数据为CSV文件。在导出淘宝买家订单数据时，可以设置商品名黑名单过滤关键字和快照商品名称获取随机延时。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -230,6 +230,13 @@ function setElementStyle() {
     userMainListRow13.style.marginLeft = "40px";
 }
 
+//重置按钮状态
+function ResetButtonStatus() {
+    document.getElementById("addOrdersList").style.background = "#409EFF";
+
+    document.getElementById("tp-bought-root").removeEventListener("click", ResetButtonStatus);
+}
+
 //数据转为csv文本文件
 function toCsv(header, data, filename) {
     let rows = "";
@@ -253,6 +260,9 @@ var currentPageOrdersData = {};
 //添加本页订单数据
 function addCurrentPageOrdersToList() {
     const mainOrders = document.getElementsByClassName("js-order-container");
+
+    var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
+
     document.getElementById("addOrdersList").style.background = "#ff9800";
 
     currentPageOrdersData = {};
@@ -275,12 +285,13 @@ function addCurrentPageOrdersToList() {
         //break; //TODO:测试单条订单记录
     }
 
-    var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
     if (isEnableSnapProductName === false) {
-        document.getElementById("addOrdersList").style.background = "#409EFF";
+        document.getElementById("addOrdersList").style.background = "#4CAF50";
+
+        document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
         Toast("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
-        console.info("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList.length) + " 条订单。");
+        console.info("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
 
         console.info("本页订单数据:");
         console.info(currentPageOrdersData);
@@ -298,9 +309,16 @@ function exportOrdersList() {
     const header = ["订单编号", "下单日期", "店铺名称", "商品名称", "商品分类", "商品主图", "商品链接", "交易快照", "单价", "数量", "退款状态", "实付款", "交易状态", "订单详情链接", "快照商品名称"];
 
     var dateTime = new Date();
-    const dateStr = dateTime.getFullYear() + "-" + dateTime.getMonth() + 1 + "-" + dateTime.getDate();
+
+    var dateTimeFullMonth = dateTime.getMonth() + 1;
+    var dateTimeFullDay = dateTime.getDate();
+
+    dateTimeFullMonth = dateTimeFullMonth < 10 ? "0" + dateTimeFullMonth : dateTimeFullMonth;
+    dateTimeFullDay = dateTimeFullDay < 10 ? "0" + dateTimeFullDay : dateTimeFullDay;
+
+    const dateStr = dateTime.getFullYear() + "-" + dateTimeFullMonth + "-" + dateTimeFullDay;
     const timeStr = dateTime.getHours() + "-" + dateTime.getMinutes() + "-" + dateTime.getSeconds();
-    const filename = "淘宝订单数据导出_" + dateStr + "_" + timeStr;
+    const filename = "淘宝买家订单数据导出_" + dateStr + "_" + timeStr;
 
     toCsv(header, orderList, filename);
 }
@@ -441,7 +459,9 @@ function getSnapShotProductName(snapShotUrl, orderDataIndex) {
                 //console.info("快照商品名称:" + orderListSnapShotProductName[orderDataIndex]);
 
                 if (getSnapShotProductNameCount === 0) {
-                    document.getElementById("addOrdersList").style.background = "#409EFF";
+                    document.getElementById("addOrdersList").style.background = "#4CAF50";
+
+                    document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
                     let element = document.createElement("span");
                     _.forEach(orderListSnapShotProductName, (value, index) => {
@@ -549,7 +569,7 @@ function processOrderList(order) {
             ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
             ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/,/g, "，");
             if (SKUNameQuery !== null) {
-                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*).*：/g, "&$1;");
+                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*).*?：/g, "&$1;");
                 SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/,/g, "，");
             }
 
