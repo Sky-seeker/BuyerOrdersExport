@@ -306,6 +306,11 @@ function addCurrentPageOrdersToList() {
 
 //导出订单数据
 function exportOrdersList() {
+    if (getSnapShotProductNameCount !== 0) {
+        alert("请等待添加成功后再导出");
+        return;
+    }
+
     const header = ["订单编号", "下单日期", "店铺名称", "商品名称", "商品分类", "商品主图", "商品链接", "交易快照", "单价", "数量", "退款状态", "实付款", "交易状态", "订单详情链接", "快照商品名称"];
 
     var dateTime = new Date();
@@ -528,8 +533,8 @@ function processOrderList(order) {
                 ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
                 actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
                 statusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0']");
-                DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0']");
-                DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0']");
+                DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
+                DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
             }
 
             picUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0']");
@@ -591,6 +596,7 @@ function processOrderList(order) {
             var subOrdersSnapshotProductName = null;
 
             //获取快照商品名称
+            console.trace()
             var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
             if (isEnableSnapProductName === true) {
                 getSnapShotProductNameCount++;
@@ -606,7 +612,7 @@ function processOrderList(order) {
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, "");
 
             orderData[orderDataIndex] = [
-                orderInfoId,
+                '"' + orderInfoId + '\t"',
                 orderInfoDate,
                 sellerInfoShopName,
                 subOrdersIteminfoProductName,
