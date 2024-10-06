@@ -596,7 +596,6 @@ function processOrderList(order) {
             var subOrdersSnapshotProductName = null;
 
             //获取快照商品名称
-            console.trace()
             var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
             if (isEnableSnapProductName === true) {
                 getSnapShotProductNameCount++;
