@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.0.2
+// @version      1.1
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括订单编号、下单日期、店铺名称、商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、退款状态、订单实付款、订单交易状态、订单详情链接、快照商品名称，导出的订单数据为CSV文件。在导出淘宝买家订单数据时，可以设置商品名黑名单过滤关键字和快照商品名称获取随机延时。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -14,6 +14,10 @@
 var orderList = {};
 var ProductNameBlackList = [];
 var defaultProductNameBlackList = ["保险服务", "增值服务", "买家秀"];
+var imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240", "300x300", "320x320", "400x400", "480x480", "560x560", "600x600", "640x640", "720x720", "800x800"];
+var imageDimensionsIndex = 0;
+
+const orderHeader = ["下单日期", "订单编号", "店铺名称", "商品名称", "快照商品名称", "商品分类", "商品主图", "商品链接", "交易快照", "单价", "数量", "实付款", "退款状态", "交易状态", "订单详情链接"];
 
 //通知气泡默认属性
 function createToast() {
@@ -61,40 +65,73 @@ function createBlackListTextarea(element) {
     Textarea.rows = 8;
     Textarea.cols = 30;
     Textarea.placeholder = "商品名称黑名单关键词，每行一条。";
+
+    Textarea.style.width = "190px";
     Textarea.style.padding = "5px";
 
     TextareaTitle.textContent = "商品名称黑名单关键词";
     TextareaTitle.style.fontSize = "15px";
     TextareaTitle.style.fontWeight = 700;
 
-    element.insertBefore(Textarea, element.childNodes[0]);
-    element.insertBefore(TextareaTitle, element.childNodes[0]);
+    element.appendChild(TextareaTitle);
+    element.appendChild(Textarea);
+}
+
+//单选按钮默认属性
+function addRadio(element, onchangeFunc, text, id, value) {
+    const radio = document.createElement("input");
+    const radioText = document.createTextNode(text);
+
+    radio.id = id;
+    radio.value = value;
+    radio.type = "radio";
+    radio.name = "imageDimensions";
+
+    radio.style.verticalAlign = "middle";
+    radio.style.marginLeft = "35px";
+    radio.style.marginRight = "5px";
+
+    radio.onchange = function () {
+        onchangeFunc();
+    };
+
+    element.appendChild(radio);
+    element.appendChild(radioText);
+}
+
+//下拉列表默认属性
+function addSelect(element, text, value) {
+    const ListSelectOption = document.createElement("option");
+
+    ListSelectOption.text = text;
+    ListSelectOption.value = value;
+
+    element.add(ListSelectOption);
 }
 
 //复选框默认属性
 function addCheckbox(element, onchangeFunc, text, id) {
     const checkbox = document.createElement("input");
-    const checkboxLabel = document.createElement("label");
+    const checkboxText = document.createTextNode(text);
 
     checkbox.id = id;
     checkbox.type = "checkbox";
     checkbox.defaultChecked = true;
 
-    checkbox.style.marginRight = "2px";
-
-    checkboxLabel.for = id;
-    checkboxLabel.textContent = text;
+    checkbox.style.verticalAlign = "middle";
+    checkbox.style.marginLeft = "30px";
+    checkbox.style.marginRight = "5px";
 
     checkbox.onchange = function () {
         onchangeFunc();
     };
 
     element.appendChild(checkbox);
-    element.appendChild(checkboxLabel);
+    element.appendChild(checkboxText);
 }
 
 //按钮默认属性
-function addButton(element, onclickFunc, text = "按钮", id, width = "160px", height = "60px") {
+function addButton(element, onclickFunc, text, id, width = "180px", height = "50px") {
     const button = document.createElement("input");
 
     button.id = id;
@@ -104,6 +141,7 @@ function addButton(element, onclickFunc, text = "按钮", id, width = "160px", h
     button.style.width = width;
     button.style.align = "center";
     button.style.marginLeft = "40px";
+    button.style.marginBottom = "20px";
     button.style.color = "white";
     button.style.background = "#409EFF";
     button.style.border = "1px solid #409EFF";
@@ -117,6 +155,48 @@ function addButton(element, onclickFunc, text = "按钮", id, width = "160px", h
     element.appendChild(button);
 }
 
+//图片尺寸选择默认属性
+function createImageDimensionsListSelect(element) {
+    let ListTitle = document.createElement("p");
+    let ListSelect = document.createElement("select");
+
+    ListTitle.id = "imageDimensionsListTitle";
+    ListTitle.textContent = "图片尺寸：";
+
+    ListSelect.id = "imageDimensionsListSelect";
+    ListSelect.name = "imageDimensions";
+
+    ListTitle.style.float = "left";
+    ListTitle.style.fontSize = "15px";
+    ListTitle.style.fontWeight = 700;
+
+    ListSelect.style.marginLeft = "5px";
+    ListSelect.style.marginRight = "5px";
+
+    //添加下拉列表项
+    for (let index = 0; index < imageDimensionsList.length; index++) {
+        addSelect(ListSelect, imageDimensionsList[index], imageDimensionsList[index]);
+    }
+
+    ListSelect.onchange = function () {
+        choseImageDimensions();
+    };
+
+    element.appendChild(ListTitle);
+
+    //var imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240","300x300","320x320",
+    //    "400x400","480x480", "560x560", "600x600","640x640", "720x720","800x800"];
+
+    //添加单选项：常用值
+    addRadio(element, changeImageDimensions, "80x80", "80x80", "80x80");
+    addRadio(element, changeImageDimensions, "300x300", "300x300", "300x300");
+    addRadio(element, changeImageDimensions, "560x560", "560x560", "560x560");
+    addRadio(element, changeImageDimensions, "800x800", "800x800", "800x800");
+    addRadio(element, changeImageDimensions, "其它", "otherImageDimensions", "otherImageDimensions");
+
+    element.appendChild(ListSelect);
+}
+
 //在订单数据页面添加控件
 const orderListPage = /(http|https):\/\/buyertrade\.taobao.*?\/trade/g;
 if (orderListPage.exec(document.URL)) {
@@ -125,45 +205,48 @@ if (orderListPage.exec(document.URL)) {
     const userMain = document.createElement("div");
     const userMainText = document.createElement("span");
     const userMainList = document.createElement("ul");
-    const userMainListRow1List = document.createElement("ul");
 
+    const userMainListRow0 = document.createElement("li");
     const userMainListRow1 = document.createElement("li");
     const userMainListRow2 = document.createElement("li");
     const userMainListRow3 = document.createElement("li");
 
-    const userMainListRow11 = document.createElement("li");
-    const userMainListRow12 = document.createElement("li");
-    const userMainListRow13 = document.createElement("li");
+    const userMainListRow0Form = document.createElement("form");
+    const userMainListRow1Form = document.createElement("form");
 
     userMain.id = "userMain";
     userMainText.id = "userMainText";
     userMainList.id = "userMainList";
-    userMainListRow1List.id = "userMainListRow1List";
 
+    userMainListRow0.id = "userMainListRow0";
     userMainListRow1.id = "userMainListRow1";
     userMainListRow2.id = "userMainListRow2";
     userMainListRow3.id = "userMainListRow3";
-    userMainListRow11.id = "userMainListRow11";
-    userMainListRow12.id = "userMainListRow12";
-    userMainListRow13.id = "userMainListRow13";
+
+    userMainListRow0Form.id = "userMainListRow0Form";
+    userMainListRow1Form.id = "userMainListRow1Form";
 
     orderListMain.insertBefore(userMain, orderListMain.childNodes[0]);
     userMain.appendChild(userMainText);
     userMain.appendChild(userMainList);
+    userMainList.appendChild(userMainListRow0);
     userMainList.appendChild(userMainListRow1);
     userMainList.appendChild(userMainListRow2);
     userMainList.appendChild(userMainListRow3);
-    userMainListRow1.appendChild(userMainListRow1List);
-    userMainListRow1List.appendChild(userMainListRow11);
-    userMainListRow1List.appendChild(userMainListRow12);
-    userMainListRow1List.appendChild(userMainListRow13);
+
+    userMainListRow0.appendChild(userMainListRow0Form);
+    userMainListRow1.appendChild(userMainListRow1Form);
 
     createToast();
+
     createBlackListTextarea(userMainText);
 
-    addCheckbox(userMainListRow11, changeBlackListStatus, "商品名黑名单过滤", "BlackListStatus");
-    addCheckbox(userMainListRow12, changeDelayStatus, "快照获取随机延时", "DelayStatus");
-    addCheckbox(userMainListRow13, changeSnapProductNameStatus, "快照商品名称获取", "SnapProductNameStatus");
+    createImageDimensionsListSelect(userMainListRow0Form);
+
+    addCheckbox(userMainListRow1Form, changeBlackListStatus, "商品名黑名单过滤", "BlackListStatus");
+    addCheckbox(userMainListRow1Form, changeDelayStatus, "快照获取随机延时", "DelayStatus");
+    addCheckbox(userMainListRow1Form, changeSnapProductNameStatus, "快照商品名称获取", "SnapProductNameStatus");
+    addCheckbox(userMainListRow1Form, changeDataFormatAdaptationStatus, "Excel数据格式适配", "DataFormatAdaptationStatus");
 
     addButton(userMainListRow2, cleanBlackList, "清空黑名单列表", "cleanBlackList");
     addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList");
@@ -185,49 +268,47 @@ if (orderListPage.exec(document.URL)) {
     console.info("在订单数据页面添加按钮!");
 }
 
+//设置元素样式
 function setElementStyle() {
     const userMain = document.getElementById("userMain");
     const userMainText = document.getElementById("userMainText");
     const userMainList = document.getElementById("userMainList");
-    const userMainListRow1List = document.getElementById("userMainListRow1List");
 
+    const userMainListRow0 = document.getElementById("userMainListRow0");
     const userMainListRow1 = document.getElementById("userMainListRow1");
     const userMainListRow2 = document.getElementById("userMainListRow2");
     const userMainListRow3 = document.getElementById("userMainListRow3");
-    const userMainListRow11 = document.getElementById("userMainListRow11");
-    const userMainListRow12 = document.getElementById("userMainListRow12");
-    const userMainListRow13 = document.getElementById("userMainListRow13");
+
+    const imageDimensionsListTitle = document.getElementById("imageDimensionsListTitle");
 
     userMain.style.height = "180px";
 
     userMainText.style.float = "left";
-    userMainText.style.width = "240px";
-    userMainText.style.paddingLeft = "30px";
+    userMainText.style.width = "200px";
     userMainText.style.display = "inline-block";
 
     userMainList.style.float = "left";
-    userMainList.style.width = "600px";
-    //userMainList.style.marginTop = "20px";
-    userMainList.style.marginLeft = "-20px";
+    userMainList.style.width = "620px";
+    userMainList.style.marginLeft = "50px";
 
+    userMainListRow0.style.fontSize = "14px";
     userMainListRow1.style.fontSize = "14px";
-    userMainListRow1.style.marginBottom = "35px";
 
-    userMainListRow2.style.marginBottom = "20px";
+    userMainListRow0.style.height = "20px";
+    userMainListRow1.style.height = "20px";
 
-    userMainListRow3.style.marginBottom = "20px";
+    userMainListRow0.style.marginBottom = "5px";
+    userMainListRow1.style.marginBottom = "10px";
 
-    userMainListRow11.style.float = "left";
-    userMainListRow11.style.width = "160px";
-    userMainListRow11.style.marginLeft = "40px";
+    //设置首列元素左边距为零
+    document.getElementById("userMainListRow0Form").elements[0].style.marginLeft = "0";
+    document.getElementById("userMainListRow1Form").elements[0].style.marginLeft = "0";
+    document.getElementById("cleanBlackList").style.marginLeft = "0";
+    document.getElementById("cleanOrdersList").style.marginLeft = "0";
 
-    userMainListRow12.style.float = "left";
-    userMainListRow12.style.width = "160px";
-    userMainListRow12.style.marginLeft = "40px";
-
-    userMainListRow13.style.float = "left";
-    userMainListRow13.style.width = "160px";
-    userMainListRow13.style.marginLeft = "40px";
+    //设置默认图片尺寸
+    document.getElementById("800x800").checked = true;
+    imageDimensionsIndex = imageDimensionsList.indexOf("800x800");
 }
 
 //重置按钮状态
@@ -282,7 +363,7 @@ function addCurrentPageOrdersToList() {
             }
         });
 
-        //break; //TODO:测试单条订单记录
+        //break;    //测试单条订单记录
     }
 
     if (isEnableSnapProductName === false) {
@@ -307,11 +388,9 @@ function addCurrentPageOrdersToList() {
 //导出订单数据
 function exportOrdersList() {
     if (getSnapShotProductNameCount !== 0) {
-        alert("请等待添加成功后再导出");
+        alert("请等待添加成功后再导出！");
         return;
     }
-
-    const header = ["订单编号", "下单日期", "店铺名称", "商品名称", "商品分类", "商品主图", "商品链接", "交易快照", "单价", "数量", "退款状态", "实付款", "交易状态", "订单详情链接", "快照商品名称"];
 
     var dateTime = new Date();
 
@@ -325,7 +404,7 @@ function exportOrdersList() {
     const timeStr = dateTime.getHours() + "-" + dateTime.getMinutes() + "-" + dateTime.getSeconds();
     const filename = "淘宝买家订单数据导出_" + dateStr + "_" + timeStr;
 
-    toCsv(header, orderList, filename);
+    toCsv(orderHeader, orderList, filename);
 }
 
 //清空订单数据
@@ -433,15 +512,69 @@ function changeSnapProductNameStatus() {
     }
 }
 
+//启用/禁用 Excel数据格式适配
+function changeDataFormatAdaptationStatus() {
+    let DataFormatAdaptationStatus = document.getElementById("DataFormatAdaptationStatus").checked;
+
+    if (DataFormatAdaptationStatus === true) {
+        Toast("启用Excel数据格式适配!");
+        console.info("启用Excel数据格式适配!");
+    } else {
+        Toast("禁用Excel数据格式适配!");
+        console.info("禁用Excel数据格式适配!");
+    }
+}
+
+// 改变图片尺寸大小
+function changeImageDimensions() {
+    var radios = document.getElementsByName("imageDimensions");
+    for (let index = 0; index < radios.length; index++) {
+        if (radios[index].checked) {
+            var imageDimensionsListIndex = imageDimensionsList.indexOf(radios[index].value);
+            var ListSelect = document.getElementById("imageDimensionsListSelect");
+
+            if (radios[index].value !== "otherImageDimensions") {
+                if (imageDimensionsListIndex !== -1) {
+                    imageDimensionsIndex = imageDimensionsListIndex;
+                }
+            } else {
+                imageDimensionsIndex = ListSelect.selectedIndex;
+            }
+
+            console.log("radios index: " + index + ";    radios value: " + radios[index].value);
+            console.log("Selected Value: " + ListSelect.value + ";    Selected Text: " + ListSelect.options[ListSelect.selectedIndex].text);
+            console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
+
+            break;
+        }
+    }
+}
+
+// 监听下拉列表的变化，改变图片尺寸大小
+function choseImageDimensions() {
+    var ListSelect = document.getElementById("imageDimensionsListSelect");
+
+    if (document.getElementById("otherImageDimensions").checked === true) {
+        imageDimensionsIndex = ListSelect.selectedIndex;
+    }
+
+    var selectedValue = ListSelect.value; // 获取选中的值
+    var selectedText = ListSelect.options[ListSelect.selectedIndex].text; // 获取选中的文本
+
+    console.log("Selected Value: " + selectedValue + ";    Selected Text: " + selectedText);
+    console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
+}
+
 var orderDataIndexListCount = 0;
 var orderDataIndexList = [];
 var getSnapShotProductNameCount = 0;
 var orderListSnapShotProductName = {};
 //获取快照商品名称
 function getSnapShotProductName(snapShotUrl, orderDataIndex) {
-    var orderDataItemIndex = 14;
     var randomTimeout = 0;
     var isenableDelay = document.getElementById("DelayStatus").checked;
+    var orderDataItemIndex = orderHeader.indexOf("快照商品名称");
+
     if (isenableDelay === true) {
         let min = 1000; //毫秒
         let max = 3000; //毫秒
@@ -532,7 +665,7 @@ function processOrderList(order) {
             if (index === 0) {
                 ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
                 actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
-                statusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0']");
+                statusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0.0']");
                 DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
                 DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
             }
@@ -544,7 +677,7 @@ function processOrderList(order) {
             SKUNameQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.1']");
             RealPriceQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$1.0.1.1']");
             countQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$2.0.0']");
-            refundQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.$text']");
+            refundQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
 
             index++;
             let orderDataIndex = id + index;
@@ -595,6 +728,19 @@ function processOrderList(order) {
 
             var subOrdersSnapshotProductName = null;
 
+            //选择图片尺寸
+            if (imageDimensionsList[imageDimensionsIndex] === "800x800") {
+                subOrdersIteminfoPicUrl = subOrdersIteminfoPicUrl.replace(/_80x80.(jpg|png)/, "");
+            } else {
+                subOrdersIteminfoPicUrl = subOrdersIteminfoPicUrl.replace(/\d*x\d*(?=.(jpg|png))/, imageDimensionsList[imageDimensionsIndex]);
+            }
+
+            //Excel数据格式适配
+            var isEnableDataFormatAdaptation = document.getElementById("DataFormatAdaptationStatus").checked;
+            if (isEnableDataFormatAdaptation === true) {
+                orderInfoId = '"' + id + '\t"';
+            }
+
             //获取快照商品名称
             var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
             if (isEnableSnapProductName === true) {
@@ -606,26 +752,26 @@ function processOrderList(order) {
 
             //精简数据
             subOrdersIteminfoProductUrl = subOrdersIteminfoProductUrl.replace(/&_u=\w*/, "");
-            subOrdersIteminfoPicUrl = subOrdersIteminfoPicUrl.replace(/_80x80.(jpg|png)/, "");
-            subOrdersIteminfoSnapUrl = subOrdersIteminfoSnapUrl.replace(/&snapShot=true/, "");
-            subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, "");
+            //subOrdersIteminfoSnapUrl = subOrdersIteminfoSnapUrl.replace(/&snapShot=true/, "");
+            subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, " ");
+            statusInfoDetailUrl = statusInfoDetailUrl.replace(/&route_to=tm1/, "");
 
             orderData[orderDataIndex] = [
-                '"' + orderInfoId + '\t"',
                 orderInfoDate,
+                orderInfoId,
                 sellerInfoShopName,
                 subOrdersIteminfoProductName,
+                subOrdersSnapshotProductName,
                 subOrdersIteminfoSKUName,
                 subOrdersIteminfoPicUrl,
                 subOrdersIteminfoProductUrl,
                 subOrdersIteminfoSnapUrl,
                 subOrdersPriceinfoRealPrice,
                 subOrdersQuantityCount,
-                subOrdersRefund,
                 payInfoActualFee,
+                subOrdersRefund,
                 statusInfoStatus,
                 statusInfoDetailUrl,
-                subOrdersSnapshotProductName,
             ];
         }
     }
