@@ -363,7 +363,7 @@ function addCurrentPageOrdersToList() {
             }
         });
 
-        //break;    //测试单条订单记录
+        //break; //TODO:测试单条订单记录
     }
 
     if (isEnableSnapProductName === false) {
@@ -756,23 +756,25 @@ function processOrderList(order) {
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, " ");
             statusInfoDetailUrl = statusInfoDetailUrl.replace(/&route_to=tm1/, "");
 
-            orderData[orderDataIndex] = [
-                orderInfoDate,
-                orderInfoId,
-                sellerInfoShopName,
-                subOrdersIteminfoProductName,
-                subOrdersSnapshotProductName,
-                subOrdersIteminfoSKUName,
-                subOrdersIteminfoPicUrl,
-                subOrdersIteminfoProductUrl,
-                subOrdersIteminfoSnapUrl,
-                subOrdersPriceinfoRealPrice,
-                subOrdersQuantityCount,
-                payInfoActualFee,
-                subOrdersRefund,
-                statusInfoStatus,
-                statusInfoDetailUrl,
-            ];
+            //项目标题在序列中的位置自动同步到项目数据在序列中的位置
+            var orderDataItemData = [];
+            orderDataItemData[orderHeader.indexOf("下单日期")] = orderInfoDate;
+            orderDataItemData[orderHeader.indexOf("订单编号")] = orderInfoId;
+            orderDataItemData[orderHeader.indexOf("店铺名称")] = sellerInfoShopName;
+            orderDataItemData[orderHeader.indexOf("商品名称")] = subOrdersIteminfoProductName;
+            orderDataItemData[orderHeader.indexOf("快照商品名称")] = subOrdersSnapshotProductName;
+            orderDataItemData[orderHeader.indexOf("商品分类")] = subOrdersIteminfoSKUName;
+            orderDataItemData[orderHeader.indexOf("商品主图")] = subOrdersIteminfoPicUrl;
+            orderDataItemData[orderHeader.indexOf("商品链接")] = subOrdersIteminfoProductUrl;
+            orderDataItemData[orderHeader.indexOf("交易快照")] = subOrdersIteminfoSnapUrl;
+            orderDataItemData[orderHeader.indexOf("单价")] = subOrdersPriceinfoRealPrice;
+            orderDataItemData[orderHeader.indexOf("数量")] = subOrdersQuantityCount;
+            orderDataItemData[orderHeader.indexOf("实付款")] = payInfoActualFee;
+            orderDataItemData[orderHeader.indexOf("退款状态")] = subOrdersRefund;
+            orderDataItemData[orderHeader.indexOf("交易状态")] = statusInfoStatus;
+            orderDataItemData[orderHeader.indexOf("订单详情链接")] = statusInfoDetailUrl;
+
+            orderData[orderDataIndex] = orderDataItemData;
         }
     }
     return orderData;
