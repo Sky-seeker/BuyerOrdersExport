@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.2
+// @version      1.2.1
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括订单编号、下单日期、店铺名称、商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、退款状态、订单实付款、订单交易状态、订单详情链接、快照商品名称，导出的订单数据为CSV文件。在导出淘宝买家订单数据时，可以设置商品名黑名单过滤关键字和快照商品名称获取随机延时。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -19,6 +19,7 @@ var imageDimensionsIndex = 0;
 var defaultOrderHeader = [
     "下单日期",
     "订单编号",
+    "子订单编号",
     "店铺名称",
     "商品名称",
     "快照商品名称",
@@ -886,6 +887,7 @@ function processOrderList(order) {
             var orderInfoId = id;
             var orderInfoDate = date;
             var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
+            var subOrdersIteminfoId = orderDataIndex;
             var subOrdersIteminfoPicUrl = picUrlQuery === null ? "" : picUrlQuery.src;
             var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
             var subOrdersIteminfoProductName = ProductNameQuery.textContent;
@@ -932,6 +934,7 @@ function processOrderList(order) {
             var orderDataItemData = [];
             orderDataItemData[orderHeader.indexOf("下单日期")] = orderInfoDate;
             orderDataItemData[orderHeader.indexOf("订单编号")] = orderInfoId;
+            orderDataItemData[orderHeader.indexOf("子订单编号")] = subOrdersIteminfoId;
             orderDataItemData[orderHeader.indexOf("店铺名称")] = sellerInfoShopName;
             orderDataItemData[orderHeader.indexOf("商品名称")] = subOrdersIteminfoProductName;
             orderDataItemData[orderHeader.indexOf("快照商品名称")] = subOrdersSnapshotProductName;
