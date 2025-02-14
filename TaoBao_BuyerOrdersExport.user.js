@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.3
+// @version      1.3.1
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、订单实付款、退款状态、订单交易状态、订单详情链接。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键字过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -15,6 +15,9 @@ var orderList = {};
 var orderHeader = [];
 var blackList = [];
 var imageDimensionsIndex = 0;
+
+const fileNamePrefix = "淘宝买家订单数据导出_";
+const fileNameSuffix = "";
 
 var defaultOrderHeader = [
     "下单日期",
@@ -75,7 +78,7 @@ function Toast(toastTextContent, alwaysShow = false) {
 }
 
 //文本区域默认属性
-function createTextarea(element, onchangeFunc, text, id, rows) {
+function createTextarea(element, onchangeFunc, text, id, width, rows) {
     let Textarea = document.createElement("TEXTAREA");
     let TextareaTitle = document.createElement("p");
 
@@ -84,7 +87,7 @@ function createTextarea(element, onchangeFunc, text, id, rows) {
     Textarea.cols = 30;
     Textarea.placeholder = "每行一条。";
 
-    Textarea.style.width = "90px";
+    Textarea.style.width = width;
     Textarea.style.height = "140px";
     Textarea.style.padding = "5px";
 
@@ -111,7 +114,7 @@ function addRadio(element, onchangeFunc, text, id, value) {
     radio.name = "imageDimensions";
 
     radio.style.verticalAlign = "middle";
-    radio.style.marginLeft = "35px";
+    radio.style.marginLeft = "30px";
     radio.style.marginRight = "5px";
 
     radio.onchange = function () {
@@ -142,7 +145,7 @@ function addCheckbox(element, onchangeFunc, text, id) {
     checkbox.defaultChecked = true;
 
     checkbox.style.verticalAlign = "middle";
-    checkbox.style.marginLeft = "30px";
+    checkbox.style.marginLeft = "22px";
     checkbox.style.marginRight = "5px";
 
     checkbox.onchange = function () {
@@ -154,7 +157,7 @@ function addCheckbox(element, onchangeFunc, text, id) {
 }
 
 //按钮默认属性
-function addButton(element, onclickFunc, text, id, width = "180px", marginLeft = "40px") {
+function addButton(element, onclickFunc, text, id, width, marginLeft) {
     const button = document.createElement("input");
 
     button.id = id;
@@ -193,8 +196,9 @@ function createImageDimensionsListSelect(element) {
     ListTitle.style.fontSize = "15px";
     ListTitle.style.fontWeight = 700;
 
+    ListSelect.style.width = "65px";
     ListSelect.style.marginLeft = "5px";
-    ListSelect.style.marginRight = "5px";
+    //ListSelect.style.marginRight = "5px";
 
     //添加下拉列表项
     for (let index = 0; index < imageDimensionsList.length; index++) {
@@ -273,8 +277,8 @@ if (orderListPage.exec(document.URL)) {
 
     createToast();
 
-    createTextarea(userMainTextCol1, changeOrderDataItemTitle, "项目标题", "OrderDataItemTitle", 20);
-    createTextarea(userMainTextCol2, changeBlackList, "黑名单关键词", "BlackListKey", 8);
+    createTextarea(userMainTextCol1, changeOrderDataItemTitle, "项目标题", "OrderDataItemTitle", "100px", 20);
+    createTextarea(userMainTextCol2, changeBlackList, "黑名单关键词", "BlackListKey", "120px", 8);
 
     createImageDimensionsListSelect(userMainListRow0Form);
 
@@ -284,14 +288,14 @@ if (orderListPage.exec(document.URL)) {
     addCheckbox(userMainListRow1Form, changeDataFormatAdaptationStatus, "Excel 格式适配", "DataFormatAdaptationStatus");
     addCheckbox(userMainListRow1Form, changeUrlUniformizationStatus, "链接一致化", "UrlUniformizationStatus");
 
-    addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "140px", "20px");
-    addButton(userMainListRow2, resetOrderDataItemTitle, "重置项目标题", "resetOrderDataItemTitle", "140px", "20px");
-    addButton(userMainListRow2, readLocalStorageData, "读取本地存储", "readLocalStorageData", "140px", "20px");
-    addButton(userMainListRow2, writeLocalStorageData, "写入本地存储", "writeLocalStorageData", "140px", "20px");
+    addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "130px", "20px");
+    addButton(userMainListRow2, resetOrderDataItemTitle, "重置项目标题", "resetOrderDataItemTitle", "130px", "20px");
+    addButton(userMainListRow2, readLocalStorageData, "读取本地存储", "readLocalStorageData", "130px", "20px");
+    addButton(userMainListRow2, writeLocalStorageData, "写入本地存储", "writeLocalStorageData", "130px", "20px");
 
-    addButton(userMainListRow3, cleanOrdersList, "清空订单数据", "cleanOrdersList");
-    addButton(userMainListRow3, exportOrdersList, "导出订单数据", "exportOrdersList");
-    addButton(userMainListRow3, addCurrentPageOrdersToList, "添加本页订单", "addOrdersList");
+    addButton(userMainListRow3, cleanOrdersList, "清空订单数据", "cleanOrdersList", "170px", "35px");
+    addButton(userMainListRow3, exportOrdersList, "导出订单数据", "exportOrdersList", "170px", "35px");
+    addButton(userMainListRow3, addCurrentPageOrdersToList, "添加本页订单", "addOrdersList", "170px", "35px");
 
     document.getElementById("exportOrdersList").disabled = true;
     document.getElementById("exportOrdersList").style.opacity = 0.6;
@@ -326,20 +330,20 @@ function setElementStyle() {
     userMain.style.height = "180px";
 
     userMainText.style.float = "left";
-    userMainText.style.width = "220px";
+    userMainText.style.width = "260px";
     userMainText.style.marginLeft = "0px";
     userMainText.style.display = "inline-block";
 
     userMainList.style.float = "left";
-    userMainList.style.width = "620px";
+    userMainList.style.width = "580px";
     userMainList.style.marginLeft = "30px";
 
     userMainTextCol1.style.float = "left";
-    userMainTextCol1.style.width = "100px";
+    userMainTextCol1.style.width = "110px";
     userMainTextCol1.style.marginLeft = "0px";
 
     userMainTextCol2.style.float = "left";
-    userMainTextCol2.style.width = "100px";
+    userMainTextCol2.style.width = "130px";
     userMainTextCol2.style.marginLeft = "20px";
 
     userMainListRow0.style.fontSize = "14px";
@@ -443,25 +447,20 @@ function exportOrdersList() {
         return;
     }
 
-    var dateTime = new Date();
+    var dateTimeStr = "";
+    var dateTime = new Date(); //获取当前日期
 
-    var dateTimeFullMonth = dateTime.getMonth() + 1;
-    var dateTimeFullDay = dateTime.getDate();
-    var dateTimeFullHours = dateTime.getHours();
-    var dateTimeFullMinutes = dateTime.getMinutes();
-    var dateTimeFullSeconds = dateTime.getSeconds();
+    dateTime.setUTCHours(dateTime.getHours()); //修正本地时与世界时之间的时差
 
-    dateTimeFullMonth = dateTimeFullMonth < 10 ? "0" + dateTimeFullMonth : dateTimeFullMonth;
-    dateTimeFullDay = dateTimeFullDay < 10 ? "0" + dateTimeFullDay : dateTimeFullDay;
-    dateTimeFullHours = dateTimeFullHours < 10 ? "0" + dateTimeFullHours : dateTimeFullHours;
-    dateTimeFullMinutes = dateTimeFullMinutes < 10 ? "0" + dateTimeFullMinutes : dateTimeFullMinutes;
-    dateTimeFullSeconds = dateTimeFullSeconds < 10 ? "0" + dateTimeFullSeconds : dateTimeFullSeconds;
+    dateTimeStr = dateTime.toISOString(); //格式为: YYYY-MM-DDTHH:mm:ss.sssZ
 
-    const dateStr = dateTime.getFullYear() + "-" + dateTimeFullMonth + "-" + dateTimeFullDay;
-    const timeStr = dateTimeFullHours + "-" + dateTimeFullMinutes + "-" + dateTimeFullSeconds;
-    const filename = "淘宝买家订单数据导出_" + dateStr + "_" + timeStr;
+    dateTimeStr = dateTimeStr.replace(/T/, "_");
+    dateTimeStr = dateTimeStr.replace(/:/g, "-");
+    dateTimeStr = dateTimeStr.replace(/\.\d{3}Z$/, "");
 
-    toCsv(orderHeader, orderList, filename);
+    const fileName = fileNamePrefix + dateTimeStr + fileNameSuffix;
+
+    toCsv(orderHeader, orderList, fileName);
 }
 
 //清空订单数据
