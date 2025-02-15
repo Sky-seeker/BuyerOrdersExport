@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.3.1
+// @version      1.3.2
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、订单实付款、退款状态、订单交易状态、订单详情链接。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键字过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -12,14 +12,15 @@
 // ==/UserScript==
 
 var orderList = {};
-var orderHeader = [];
+var pageOrderList = {};
+var orderHeaderList = [];
 var blackList = [];
 var imageDimensionsIndex = 0;
 
 const fileNamePrefix = "淘宝买家订单数据导出_";
 const fileNameSuffix = "";
 
-var defaultOrderHeader = [
+var defaultOrderHeaderList = [
     "下单日期",
     "订单编号",
     "子订单编号",
@@ -93,7 +94,7 @@ function createTextarea(element, onchangeFunc, text, id, width, rows) {
 
     TextareaTitle.textContent = text;
     TextareaTitle.style.fontSize = "15px";
-    TextareaTitle.style.fontWeight = 700;
+    TextareaTitle.style.fontWeight = "700";
 
     Textarea.onchange = function () {
         onchangeFunc();
@@ -104,17 +105,17 @@ function createTextarea(element, onchangeFunc, text, id, width, rows) {
 }
 
 //单选按钮默认属性
-function addRadio(element, onchangeFunc, text, id, value) {
+function addRadio(element, onchangeFunc, name, text, id, value) {
     const radio = document.createElement("input");
     const radioText = document.createTextNode(text);
 
     radio.id = id;
     radio.value = value;
     radio.type = "radio";
-    radio.name = "imageDimensions";
+    radio.name = name;
 
     radio.style.verticalAlign = "middle";
-    radio.style.marginLeft = "30px";
+    radio.style.marginLeft = "25px";
     radio.style.marginRight = "5px";
 
     radio.onchange = function () {
@@ -123,16 +124,6 @@ function addRadio(element, onchangeFunc, text, id, value) {
 
     element.appendChild(radio);
     element.appendChild(radioText);
-}
-
-//下拉列表默认属性
-function addSelect(element, text, value) {
-    const ListSelectOption = document.createElement("option");
-
-    ListSelectOption.text = text;
-    ListSelectOption.value = value;
-
-    element.add(ListSelectOption);
 }
 
 //复选框默认属性
@@ -196,13 +187,17 @@ function createImageDimensionsListSelect(element) {
     ListTitle.style.fontSize = "15px";
     ListTitle.style.fontWeight = 700;
 
-    ListSelect.style.width = "65px";
+    ListSelect.style.width = "85px";
     ListSelect.style.marginLeft = "5px";
-    //ListSelect.style.marginRight = "5px";
 
     //添加下拉列表项
-    for (let index = 0; index < imageDimensionsList.length; index++) {
-        addSelect(ListSelect, imageDimensionsList[index], imageDimensionsList[index]);
+    for (let imageDimension of imageDimensionsList) {
+        const ListSelectOption = document.createElement("option");
+
+        ListSelectOption.text = imageDimension;
+        ListSelectOption.value = imageDimension;
+
+        ListSelect.add(ListSelectOption);
     }
 
     ListSelect.onchange = function () {
@@ -215,11 +210,11 @@ function createImageDimensionsListSelect(element) {
     //    "400x400","480x480", "560x560", "600x600","640x640", "720x720","800x800"];
 
     //添加单选项：常用值
-    addRadio(element, changeImageDimensions, "80x80", "80x80", "80x80");
-    addRadio(element, changeImageDimensions, "300x300", "300x300", "300x300");
-    addRadio(element, changeImageDimensions, "560x560", "560x560", "560x560");
-    addRadio(element, changeImageDimensions, "800x800", "800x800", "800x800");
-    addRadio(element, changeImageDimensions, "其它", "otherImageDimensions", "otherImageDimensions");
+    addRadio(element, changeImageDimensions, "imageDimensions", "80x80", "80x80", "80x80");
+    addRadio(element, changeImageDimensions, "imageDimensions", "300x300", "300x300", "300x300");
+    addRadio(element, changeImageDimensions, "imageDimensions", "560x560", "560x560", "560x560");
+    addRadio(element, changeImageDimensions, "imageDimensions", "800x800", "800x800", "800x800");
+    addRadio(element, changeImageDimensions, "imageDimensions", "其它", "otherImageDimensions", "otherImageDimensions");
 
     element.appendChild(ListSelect);
 }
@@ -277,8 +272,8 @@ if (orderListPage.exec(document.URL)) {
 
     createToast();
 
-    createTextarea(userMainTextCol1, changeOrderDataItemTitle, "项目标题", "OrderDataItemTitle", "100px", 20);
-    createTextarea(userMainTextCol2, changeBlackList, "黑名单关键词", "BlackListKey", "120px", 8);
+    createTextarea(userMainTextCol1, changeOrderListHeader, "项目标题", "orderListHeader", "100px", 20);
+    createTextarea(userMainTextCol2, changeBlackListKey, "黑名单关键词", "BlackListKey", "120px", 8);
 
     createImageDimensionsListSelect(userMainListRow0Form);
 
@@ -289,23 +284,17 @@ if (orderListPage.exec(document.URL)) {
     addCheckbox(userMainListRow1Form, changeUrlUniformizationStatus, "链接一致化", "UrlUniformizationStatus");
 
     addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "130px", "20px");
-    addButton(userMainListRow2, resetOrderDataItemTitle, "重置项目标题", "resetOrderDataItemTitle", "130px", "20px");
+    addButton(userMainListRow2, resetOrderListHeader, "重置项目标题", "resetOrderListHeader", "130px", "20px");
     addButton(userMainListRow2, readLocalStorageData, "读取本地存储", "readLocalStorageData", "130px", "20px");
     addButton(userMainListRow2, writeLocalStorageData, "写入本地存储", "writeLocalStorageData", "130px", "20px");
 
-    addButton(userMainListRow3, cleanOrdersList, "清空订单数据", "cleanOrdersList", "170px", "35px");
+    addButton(userMainListRow3, clearOrdersList, "清空订单数据", "clearOrdersList", "170px", "35px");
     addButton(userMainListRow3, exportOrdersList, "导出订单数据", "exportOrdersList", "170px", "35px");
-    addButton(userMainListRow3, addCurrentPageOrdersToList, "添加本页订单", "addOrdersList", "170px", "35px");
-
-    document.getElementById("exportOrdersList").disabled = true;
-    document.getElementById("exportOrdersList").style.opacity = 0.6;
-
-    document.getElementById("cleanOrdersList").disabled = true;
-    document.getElementById("cleanOrdersList").style.opacity = 0.6;
+    addButton(userMainListRow3, addPageOrdersToList, "添加本页订单", "addPageOrdersToList", "170px", "35px");
 
     setElementStyle();
 
-    resetOrderDataItemTitle();
+    resetOrderListHeader();
     resetBlackList();
 
     console.info("在订单数据页面添加按钮!");
@@ -368,7 +357,7 @@ function setElementStyle() {
 
 //重置按钮状态
 function ResetButtonStatus() {
-    document.getElementById("addOrdersList").style.background = "#409EFF";
+    document.getElementById("addPageOrdersToList").style.background = "#409EFF";
 
     document.getElementById("tp-bought-root").removeEventListener("click", ResetButtonStatus);
 }
@@ -379,9 +368,9 @@ function toCsv(header, data, filename) {
     let row = header.join(",");
     rows += row + "\n";
 
-    _.forEach(data, (value) => {
-        rows += value.join(",") + "\n";
-    });
+    for (let key in data) {
+        rows += data[key].join(",") + "\n";
+    }
 
     let blob = new Blob(["\ufeff" + rows], { type: "text/csv;charset=utf-8;" });
     let encodedUrl = URL.createObjectURL(blob);
@@ -392,52 +381,51 @@ function toCsv(header, data, filename) {
     url.click();
 }
 
-var currentPageOrdersData = {};
 //添加本页订单数据
-function addCurrentPageOrdersToList() {
+function addPageOrdersToList() {
     const mainOrders = document.getElementsByClassName("js-order-container");
-
     var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
 
-    document.getElementById("addOrdersList").style.background = "#ff9800";
+    document.getElementById("addPageOrdersToList").style.background = "#ff9800";
 
-    currentPageOrdersData = {};
+    pageOrderList = {};
 
+    console.time("processOrderList");
     //遍历每条订单记录
     for (let order of mainOrders) {
-        let items = processOrderList(order);
+        console.time("processOrder");
+        let orderItem = processOrderList(order);
+        console.timeEnd("processOrder");
 
-        if (!items) {
+        if (!orderItem) {
             continue;
         }
 
-        _.forEach(items, (value, key) => {
-            orderList[key] = value;
+        console.time("copyOrder");
+        for (let orderItemKey in orderItem) {
+            orderList[orderItemKey] = orderItem[orderItemKey];
             if (isEnableSnapProductName === false) {
-                currentPageOrdersData[key] = value;
+                pageOrderList[orderItemKey] = orderItem[orderItemKey];
             }
-        });
+            console.count("orderList_for...in");
+        }
+        console.timeEnd("copyOrder");
 
         //break; //TODO:测试单条订单记录
     }
+    console.timeEnd("processOrderList");
 
     if (isEnableSnapProductName === false) {
-        document.getElementById("addOrdersList").style.background = "#4CAF50";
+        document.getElementById("addPageOrdersToList").style.background = "#4CAF50";
 
         document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
-        Toast("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
-        console.info("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
+        Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
+        console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
 
         console.info("本页订单数据:");
-        console.info(currentPageOrdersData);
+        console.info(pageOrderList);
     }
-
-    document.getElementById("exportOrdersList").disabled = false;
-    document.getElementById("exportOrdersList").style.opacity = 1;
-
-    document.getElementById("cleanOrdersList").disabled = false;
-    document.getElementById("cleanOrdersList").style.opacity = 1;
 }
 
 //导出订单数据
@@ -460,11 +448,11 @@ function exportOrdersList() {
 
     const fileName = fileNamePrefix + dateTimeStr + fileNameSuffix;
 
-    toCsv(orderHeader, orderList, fileName);
+    toCsv(orderHeaderList, orderList, fileName);
 }
 
 //清空订单数据
-function cleanOrdersList() {
+function clearOrdersList() {
     let count = Object.keys(orderList).length;
     orderList = {};
 
@@ -474,21 +462,21 @@ function cleanOrdersList() {
 
 //写入本地存储: 项目标题 + 黑名单列表
 function writeLocalStorageData() {
-    var orderHeaderDataString = "";
-    var blackListDataString = "";
+    var orderHeaderListString = "";
+    var blackListString = "";
 
     if (typeof Storage !== "undefined") {
         //localStorage.clear();
 
-        orderHeaderDataString = orderHeader.join("\n");
-        blackListDataString = blackList.join("\n");
+        orderHeaderListString = orderHeaderList.join("\n");
+        blackListString = blackList.join("\n");
 
-        localStorage.setItem("orderHeader", orderHeaderDataString);
-        localStorage.setItem("blackList", blackListDataString);
+        localStorage.setItem("orderHeaderList", orderHeaderListString);
+        localStorage.setItem("blackList", blackListString);
 
         Toast("存储数据到本地！");
         console.info("存储数据到本地！");
-        console.info("orderHeader" + "[" + orderHeader.length + "]:" + orderHeader);
+        console.info("orderHeaderList" + "[" + orderHeaderList.length + "]:" + orderHeaderList);
         console.info("blackList" + "[" + blackList.length + "]:" + blackList);
         console.info("localStorage" + "[" + localStorage.length + "]:");
         console.info(localStorage);
@@ -504,23 +492,23 @@ function readLocalStorageData() {
     if (typeof Storage !== "undefined") {
         var orderHeaderDatalength = 0;
         var blackListDatalength = 0;
-        var orderHeaderDataString = "";
-        var blackListDataString = "";
+        var orderHeaderListString = "";
+        var blackListString = "";
 
-        orderHeaderDataString = localStorage.getItem("orderHeader");
-        blackListDataString = localStorage.getItem("blackList");
+        orderHeaderListString = localStorage.getItem("orderHeaderList");
+        blackListString = localStorage.getItem("blackList");
 
-        if (orderHeaderDataString !== null) {
-            orderHeader = orderHeaderDataString.split("\n");
-            document.getElementById("OrderDataItemTitle").value = orderHeader.join("\n") + "\n";
+        if (orderHeaderListString !== null) {
+            orderHeaderList = orderHeaderListString.split("\n");
+            document.getElementById("orderListHeader").value = orderHeaderList.join("\n") + "\n";
         } else {
             Toast("本地存储的项目标题为空！");
             console.info("本地存储的项目标题为空！");
             alert("本地存储的项目标题为空！");
         }
 
-        if (blackListDataString !== null) {
-            blackList = blackListDataString.split("\n");
+        if (blackListString !== null) {
+            blackList = blackListString.split("\n");
             document.getElementById("BlackListKey").value = blackList.join("\n") + "\n";
         } else {
             Toast("本地存储的黑名单列表为空！");
@@ -528,10 +516,10 @@ function readLocalStorageData() {
             alert("本地存储的黑名单列表为空！");
         }
 
-        if (orderHeaderDataString !== null || blackListDataString !== null) {
+        if (orderHeaderListString !== null || blackListString !== null) {
             Toast("读取数据到脚本！");
             console.info("读取数据到脚本！");
-            console.info("orderHeader" + "[" + orderHeader.length + "]:" + orderHeader);
+            console.info("orderHeaderList" + "[" + orderHeaderList.length + "]:" + orderHeaderList);
             console.info("blackList" + "[" + blackList.length + "]:" + blackList);
             console.info("localStorage" + "[" + localStorage.length + "]:");
             console.info(localStorage);
@@ -544,65 +532,48 @@ function readLocalStorageData() {
 }
 
 //改变项目标题
-function changeOrderDataItemTitle() {
-    var textareaContent = document.getElementById("OrderDataItemTitle").value;
-    var OrderDataItemTitleList = null;
+function changeOrderListHeader() {
+    var textareaContent = document.getElementById("orderListHeader").value;
 
-    if (textareaContent.search(/\S/) === -1) {
-        textareaContent = "";
+    if (textareaContent.search(/\S+/) === -1) {
+        textareaContent = orderHeaderList.join("\n") + "\n";
 
-        for (let index = 0; index < orderHeader.length; index++) {
-            textareaContent = textareaContent + orderHeader[index] + "\n";
-        }
-
-        document.getElementById("OrderDataItemTitle").value = textareaContent;
+        document.getElementById("orderListHeader").value = textareaContent;
 
         Toast("项目标题不能为空!");
         console.info("项目标题不能为空!");
         alert("项目标题不能为空！");
     } else {
-        orderHeader = [];
-        textareaContent = textareaContent + "\n";
-        OrderDataItemTitleList = textareaContent.match(/\S+\n/g);
-        textareaContent = "";
+        orderHeaderList = textareaContent.match(/\S+/g);
+        textareaContent = orderHeaderList.join("\n") + "\n";
 
-        for (let index = 0; index < OrderDataItemTitleList.length; index++) {
-            orderHeader[index] = OrderDataItemTitleList[index].replace("\n", "");
-            textareaContent = textareaContent + OrderDataItemTitleList[index];
-        }
+        document.getElementById("orderListHeader").value = textareaContent;
 
-        document.getElementById("OrderDataItemTitle").value = textareaContent;
-
-        Toast("修改项目标题!");
-        console.info("修改项目标题!");
-        console.info("orderHeader[" + OrderDataItemTitleList.length + "]:" + orderHeader);
+        Toast("设置项目标题!");
+        console.info("设置项目标题!");
+        console.info("orderHeaderList[" + orderHeaderList.length + "]:" + orderHeaderList);
     }
 }
 
 //重置项目标题
-function resetOrderDataItemTitle() {
-    document.getElementById("OrderDataItemTitle").value = "";
+function resetOrderListHeader() {
     var textareaContent = "";
-    orderHeader = [];
 
-    for (let index = 0; index < defaultOrderHeader.length; index++) {
-        orderHeader[index] = defaultOrderHeader[index];
-        textareaContent = textareaContent + defaultOrderHeader[index] + "\n";
-    }
+    orderHeaderList = defaultOrderHeaderList;
+    textareaContent = orderHeaderList.join("\n") + "\n";
 
-    document.getElementById("OrderDataItemTitle").value = textareaContent;
+    document.getElementById("orderListHeader").value = textareaContent;
 
     Toast("重置项目标题!");
     console.info("重置项目标题!");
-    console.info("orderHeader[" + orderHeader.length + "]:" + orderHeader);
+    console.info("orderHeaderList[" + orderHeaderList.length + "]:" + orderHeaderList);
 }
 
 //改变黑名单列表
-function changeBlackList() {
+function changeBlackListKey() {
     var textareaContent = document.getElementById("BlackListKey").value;
-    var blackListTemp = null;
 
-    if (textareaContent.search(/\S/) === -1) {
+    if (textareaContent.search(/\S+/) === -1) {
         document.getElementById("BlackListKey").value = "";
         blackList = [];
 
@@ -610,15 +581,8 @@ function changeBlackList() {
         console.info("清空黑名单列表!");
         console.info("blackList:" + blackList);
     } else {
-        blackList = [];
-        textareaContent = textareaContent + "\n";
-        blackListTemp = textareaContent.match(/\S+\n/g);
-        textareaContent = "";
-
-        for (let index = 0; index < blackListTemp.length; index++) {
-            blackList[index] = blackListTemp[index].replace("\n", "");
-            textareaContent = textareaContent + blackListTemp[index];
-        }
+        blackList = textareaContent.match(/\S+/g);
+        textareaContent = blackList.join("\n") + "\n";
 
         document.getElementById("BlackListKey").value = textareaContent;
 
@@ -630,14 +594,10 @@ function changeBlackList() {
 
 //重置黑名单列表
 function resetBlackList() {
-    document.getElementById("BlackListKey").value = "";
     var textareaContent = "";
-    blackList = [];
 
-    for (let index = 0; index < defaultBlackList.length; index++) {
-        blackList[index] = defaultBlackList[index];
-        textareaContent = textareaContent + defaultBlackList[index] + "\n";
-    }
+    blackList = defaultBlackList;
+    textareaContent = blackList.join("\n") + "\n";
 
     document.getElementById("BlackListKey").value = textareaContent;
 
@@ -648,29 +608,17 @@ function resetBlackList() {
 
 //启用/禁用 商品名黑名单过滤
 function changeBlackListStatus() {
-    let BlackListStatus = document.getElementById("BlackListStatus").checked;
+    let isEnableBlackListStatus = document.getElementById("BlackListStatus").checked;
 
-    if (BlackListStatus === true) {
-        document.getElementById("cleanBlackList").disabled = false;
-        document.getElementById("cleanBlackList").style.opacity = 1;
-
+    if (isEnableBlackListStatus === true) {
         document.getElementById("resetBlackList").disabled = false;
         document.getElementById("resetBlackList").style.opacity = 1;
-
-        document.getElementById("setBlackList").disabled = false;
-        document.getElementById("setBlackList").style.opacity = 1;
 
         Toast("启用商品名黑名单过滤!");
         console.info("启用商品名黑名单过滤!");
     } else {
-        document.getElementById("cleanBlackList").disabled = true;
-        document.getElementById("cleanBlackList").style.opacity = 0.6;
-
         document.getElementById("resetBlackList").disabled = true;
         document.getElementById("resetBlackList").style.opacity = 0.6;
-
-        document.getElementById("setBlackList").disabled = true;
-        document.getElementById("setBlackList").style.opacity = 0.6;
 
         Toast("禁用商品名黑名单过滤!");
         console.info("禁用商品名黑名单过滤!");
@@ -679,11 +627,11 @@ function changeBlackListStatus() {
 
 //启用/禁用 快照获取随机延时
 function changeDelayStatus() {
-    let DelayStatus = document.getElementById("DelayStatus").checked;
+    let isEnableDelayStatus = document.getElementById("DelayStatus").checked;
 
-    if (DelayStatus === true) {
-        Toast("启用快照获取随机延时1.0~3.0S!");
-        console.info("启用快照获取随机延时1.0~3.0S!");
+    if (isEnableDelayStatus === true) {
+        Toast("启用快照获取随机延时!");
+        console.info("启用快照获取随机延时!");
     } else {
         Toast("禁用快照获取随机延时!");
         console.info("禁用快照获取随机延时!");
@@ -692,9 +640,9 @@ function changeDelayStatus() {
 
 //启用/禁用 快照商品名称获取
 function changeSnapProductNameStatus() {
-    let SnapProductNameStatus = document.getElementById("SnapProductNameStatus").checked;
+    let isEnableSnapProductNameStatus = document.getElementById("SnapProductNameStatus").checked;
 
-    if (SnapProductNameStatus === true) {
+    if (isEnableSnapProductNameStatus === true) {
         Toast("启用快照商品名称获取!");
         console.info("启用快照商品名称获取!");
     } else {
@@ -705,9 +653,9 @@ function changeSnapProductNameStatus() {
 
 //启用/禁用 Excel数据格式适配
 function changeDataFormatAdaptationStatus() {
-    let DataFormatAdaptationStatus = document.getElementById("DataFormatAdaptationStatus").checked;
+    let isEnableDataFormatAdaptationStatus = document.getElementById("DataFormatAdaptationStatus").checked;
 
-    if (DataFormatAdaptationStatus === true) {
+    if (isEnableDataFormatAdaptationStatus === true) {
         Toast("启用Excel数据格式适配!");
         console.info("启用Excel数据格式适配!");
     } else {
@@ -718,9 +666,9 @@ function changeDataFormatAdaptationStatus() {
 
 //启用/禁用 订单详情链接一致化
 function changeUrlUniformizationStatus() {
-    let UrlUniformizationStatus = document.getElementById("UrlUniformizationStatus").checked;
+    let isEnableUrlUniformizationStatus = document.getElementById("UrlUniformizationStatus").checked;
 
-    if (UrlUniformizationStatus === true) {
+    if (isEnableUrlUniformizationStatus === true) {
         Toast("启用订单详情链接一致化!");
         console.info("启用订单详情链接一致化!");
     } else {
@@ -732,26 +680,29 @@ function changeUrlUniformizationStatus() {
 // 改变图片尺寸大小
 function changeImageDimensions() {
     var radios = document.getElementsByName("imageDimensions");
-    for (let index = 0; index < radios.length; index++) {
-        if (radios[index].checked) {
-            var imageDimensionsListIndex = imageDimensionsList.indexOf(radios[index].value);
-            var ListSelect = document.getElementById("imageDimensionsListSelect");
+    var ListSelect = document.getElementById("imageDimensionsListSelect");
+    var imageDimensionsTemp = null;
 
-            if (radios[index].value !== "otherImageDimensions") {
-                if (imageDimensionsListIndex !== -1) {
-                    imageDimensionsIndex = imageDimensionsListIndex;
-                }
-            } else {
-                imageDimensionsIndex = ListSelect.selectedIndex;
-            }
-
-            console.log("radios index: " + index + ";    radios value: " + radios[index].value);
-            console.log("Selected Value: " + ListSelect.value + ";    Selected Text: " + ListSelect.options[ListSelect.selectedIndex].text);
-            console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
-
+    for (let radio of radios) {
+        if (radio.checked === true) {
+            imageDimensionsTemp = radio;
             break;
         }
     }
+
+    if (imageDimensionsTemp.value !== "otherImageDimensions") {
+        var imageDimensionsIndexTemp = imageDimensionsList.indexOf(imageDimensionsTemp.value);
+
+        if (imageDimensionsIndexTemp !== -1) {
+            imageDimensionsIndex = imageDimensionsIndexTemp;
+        }
+    } else {
+        imageDimensionsIndex = ListSelect.selectedIndex;
+    }
+
+    console.log("radios index: " + Array.from(radios).indexOf(imageDimensionsTemp) + ";    radios value: " + imageDimensionsTemp.value);
+    console.log("Selected Value: " + ListSelect.value + ";    Selected Text: " + ListSelect.options[ListSelect.selectedIndex].text);
+    console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
 }
 
 // 监听下拉列表的变化，改变图片尺寸大小
@@ -769,15 +720,15 @@ function choseImageDimensions() {
     console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
 }
 
-var orderDataIndexListCount = 0;
-var orderDataIndexList = [];
+var orderItemIndexListCount = 0;
+var orderItemIndexList = [];
 var getSnapShotProductNameCount = 0;
 var orderListSnapShotProductName = {};
 //获取快照商品名称
-function getSnapShotProductName(snapShotUrl, orderDataIndex) {
+function getSnapShotProductName(snapShotUrl, orderItemIndex) {
     var randomTimeout = 0;
     var isenableDelay = document.getElementById("DelayStatus").checked;
-    var orderDataItemIndex = orderHeader.indexOf("快照商品名称");
+    var orderItemDataIndex = orderHeaderList.indexOf("快照商品名称");
 
     if (isenableDelay === true) {
         let min = 1000; //毫秒
@@ -785,8 +736,8 @@ function getSnapShotProductName(snapShotUrl, orderDataIndex) {
         randomTimeout = Math.round(Math.random() * (max - min)) + min;
     }
 
-    orderDataIndexList[orderDataIndexListCount] = orderDataIndex;
-    orderDataIndexListCount++;
+    orderItemIndexList[orderItemIndexListCount] = orderItemIndex;
+    orderItemIndexListCount++;
 
     Toast("正在获取快照商品名称...", true);
     console.info("正在获取快照商品名称...");
@@ -795,39 +746,41 @@ function getSnapShotProductName(snapShotUrl, orderDataIndex) {
         const xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                orderListSnapShotProductName[orderDataIndex] = this.responseText.match(/<title>(.*)<\/title>/)[1];
+                orderListSnapShotProductName[orderItemIndex] = this.responseText.match(/<title>(.*)<\/title>/)[1];
 
                 getSnapShotProductNameCount--;
-                //console.info("快照商品名称:" + orderListSnapShotProductName[orderDataIndex]);
+                //console.info("快照商品名称:" + orderListSnapShotProductName[orderItemIndex]);
 
                 if (getSnapShotProductNameCount === 0) {
-                    document.getElementById("addOrdersList").style.background = "#4CAF50";
+                    document.getElementById("addPageOrdersToList").style.background = "#4CAF50";
 
                     document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
                     let element = document.createElement("span");
-                    _.forEach(orderListSnapShotProductName, (value, index) => {
-                        element.innerHTML = value;
+
+                    for (let orderItemIndex in orderListSnapShotProductName) {
+                        element.innerHTML = orderListSnapShotProductName[orderItemIndex];
                         element.innerHTML = element.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
                         element.innerHTML = element.innerHTML.replace(/,/g, "，");
 
-                        orderListSnapShotProductName[index] = element.innerText;
-                        orderList[index][orderDataItemIndex] = orderListSnapShotProductName[index];
-                    });
+                        orderListSnapShotProductName[orderItemIndex] = element.innerText;
+                        orderList[orderItemIndex][orderItemDataIndex] = orderListSnapShotProductName[orderItemIndex];
+                    }
+
                     element.remove();
 
-                    _.forEach(orderDataIndexList, (value) => {
-                        currentPageOrdersData[value] = orderList[value];
-                    });
+                    for (let orderItemIndex of orderItemIndexList) {
+                        pageOrderList[orderItemIndex] = orderList[orderItemIndex];
+                    }
 
-                    orderDataIndexListCount = 0;
-                    orderDataIndexList = [];
+                    orderItemIndexListCount = 0;
+                    orderItemIndexList = [];
 
-                    Toast("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
-                    console.info("添加 " + Object.keys(currentPageOrdersData).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
+                    Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
+                    console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
 
                     console.info("本页订单数据:");
-                    console.info(currentPageOrdersData);
+                    console.info(pageOrderList);
                 }
             }
         };
@@ -884,7 +837,7 @@ function processOrderList(order) {
             refundQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
 
             index++;
-            let orderDataIndex = id + index;
+            let orderItemIndex = id + index;
 
             if (ProductNameQuery === null) {
                 break;
@@ -923,7 +876,7 @@ function processOrderList(order) {
             var orderInfoId = id;
             var orderInfoDate = date;
             var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
-            var subOrdersIteminfoId = orderDataIndex;
+            var subOrdersIteminfoId = orderItemIndex;
             var subOrdersIteminfoPicUrl = picUrlQuery === null ? "" : picUrlQuery.src;
             var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
             var subOrdersIteminfoProductName = ProductNameQuery.textContent;
@@ -968,7 +921,7 @@ function processOrderList(order) {
             var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
             if (isEnableSnapProductName === true) {
                 getSnapShotProductNameCount++;
-                getSnapShotProductName(subOrdersIteminfoSnapUrl, orderDataIndex);
+                getSnapShotProductName(subOrdersIteminfoSnapUrl, orderItemIndex);
             } else {
                 subOrdersSnapshotProductName = "";
             }
@@ -981,24 +934,24 @@ function processOrderList(order) {
 
             //项目标题在序列中的位置自动同步到项目数据在序列中的位置
             var orderDataItemData = [];
-            orderDataItemData[orderHeader.indexOf("下单日期")] = orderInfoDate;
-            orderDataItemData[orderHeader.indexOf("订单编号")] = orderInfoId;
-            orderDataItemData[orderHeader.indexOf("子订单编号")] = subOrdersIteminfoId;
-            orderDataItemData[orderHeader.indexOf("店铺名称")] = sellerInfoShopName;
-            orderDataItemData[orderHeader.indexOf("商品名称")] = subOrdersIteminfoProductName;
-            orderDataItemData[orderHeader.indexOf("快照商品名称")] = subOrdersSnapshotProductName;
-            orderDataItemData[orderHeader.indexOf("商品分类")] = subOrdersIteminfoSKUName;
-            orderDataItemData[orderHeader.indexOf("商品主图")] = subOrdersIteminfoPicUrl;
-            orderDataItemData[orderHeader.indexOf("商品链接")] = subOrdersIteminfoProductUrl;
-            orderDataItemData[orderHeader.indexOf("交易快照")] = subOrdersIteminfoSnapUrl;
-            orderDataItemData[orderHeader.indexOf("单价")] = subOrdersPriceinfoRealPrice;
-            orderDataItemData[orderHeader.indexOf("数量")] = subOrdersQuantityCount;
-            orderDataItemData[orderHeader.indexOf("实付款")] = payInfoActualFee;
-            orderDataItemData[orderHeader.indexOf("退款状态")] = subOrdersRefund;
-            orderDataItemData[orderHeader.indexOf("交易状态")] = statusInfoStatus;
-            orderDataItemData[orderHeader.indexOf("订单详情链接")] = statusInfoDetailUrl;
+            orderDataItemData[orderHeaderList.indexOf("下单日期")] = orderInfoDate;
+            orderDataItemData[orderHeaderList.indexOf("订单编号")] = orderInfoId;
+            orderDataItemData[orderHeaderList.indexOf("子订单编号")] = subOrdersIteminfoId;
+            orderDataItemData[orderHeaderList.indexOf("店铺名称")] = sellerInfoShopName;
+            orderDataItemData[orderHeaderList.indexOf("商品名称")] = subOrdersIteminfoProductName;
+            orderDataItemData[orderHeaderList.indexOf("快照商品名称")] = subOrdersSnapshotProductName;
+            orderDataItemData[orderHeaderList.indexOf("商品分类")] = subOrdersIteminfoSKUName;
+            orderDataItemData[orderHeaderList.indexOf("商品主图")] = subOrdersIteminfoPicUrl;
+            orderDataItemData[orderHeaderList.indexOf("商品链接")] = subOrdersIteminfoProductUrl;
+            orderDataItemData[orderHeaderList.indexOf("交易快照")] = subOrdersIteminfoSnapUrl;
+            orderDataItemData[orderHeaderList.indexOf("单价")] = subOrdersPriceinfoRealPrice;
+            orderDataItemData[orderHeaderList.indexOf("数量")] = subOrdersQuantityCount;
+            orderDataItemData[orderHeaderList.indexOf("实付款")] = payInfoActualFee;
+            orderDataItemData[orderHeaderList.indexOf("退款状态")] = subOrdersRefund;
+            orderDataItemData[orderHeaderList.indexOf("交易状态")] = statusInfoStatus;
+            orderDataItemData[orderHeaderList.indexOf("订单详情链接")] = statusInfoDetailUrl;
 
-            orderData[orderDataIndex] = orderDataItemData;
+            orderData[orderItemIndex] = orderDataItemData;
         }
     }
     return orderData;
