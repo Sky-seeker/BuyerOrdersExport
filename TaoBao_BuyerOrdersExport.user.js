@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.3.3
+// @version      1.3.4
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、订单实付款、退款状态、订单交易状态、订单详情链接。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键字过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -20,7 +20,7 @@ var imageDimensionsIndex = 0;
 const fileNamePrefix = "淘宝买家订单数据导出_";
 const fileNameSuffix = "";
 
-var defaultOrderHeaderList = [
+const defaultOrderHeaderList = [
     "下单日期",
     "订单编号",
     "子订单编号",
@@ -38,8 +38,8 @@ var defaultOrderHeaderList = [
     "交易状态",
     "订单详情链接",
 ];
-var defaultBlackList = ["保险服务", "增值服务", "买家秀"];
-var imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240", "300x300", "320x320", "400x400", "480x480", "560x560", "600x600", "640x640", "720x720", "800x800"];
+const defaultBlackList = ["保险服务", "增值服务", "买家秀"];
+const imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240", "300x300", "320x320", "400x400", "480x480", "560x560", "600x600", "640x640", "720x720", "800x800"];
 
 var httpRequestResult = {
     SnapShotAmount: 0,
@@ -50,8 +50,8 @@ var httpRequestResult = {
 };
 //通知气泡默认属性
 function createToast() {
-    let Toast = document.createElement("div");
-    let ToastText = document.createTextNode("通知气泡");
+    const Toast = document.createElement("div");
+    const ToastText = document.createTextNode("通知气泡");
 
     Toast.id = "Toast";
     Toast.style.visibility = "hidden";
@@ -73,7 +73,7 @@ function createToast() {
 
 //调用通知气泡
 function Toast(toastTextContent, alwaysShow = false) {
-    let Toast = document.getElementById("Toast");
+    const Toast = document.getElementById("Toast");
 
     Toast.style.visibility = "visible";
     Toast.textContent = toastTextContent;
@@ -87,8 +87,8 @@ function Toast(toastTextContent, alwaysShow = false) {
 
 //文本区域默认属性
 function createTextarea(element, onchangeFunc, text, id, width, rows) {
-    let Textarea = document.createElement("TEXTAREA");
-    let TextareaTitle = document.createElement("p");
+    const Textarea = document.createElement("TEXTAREA");
+    const TextareaTitle = document.createElement("p");
 
     Textarea.id = id;
     Textarea.rows = rows;
@@ -181,8 +181,8 @@ function addButton(element, onclickFunc, text, id, width, marginLeft) {
 
 //图片尺寸选择默认属性
 function createImageDimensionsListSelect(element) {
-    let ListTitle = document.createElement("p");
-    let ListSelect = document.createElement("select");
+    const ListTitle = document.createElement("p");
+    const ListSelect = document.createElement("select");
 
     ListTitle.id = "imageDimensionsListTitle";
     ListTitle.textContent = "图片尺寸：";
@@ -213,7 +213,7 @@ function createImageDimensionsListSelect(element) {
 
     element.appendChild(ListTitle);
 
-    //var imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240","300x300","320x320",
+    //const imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240","300x300","320x320",
     //    "400x400","480x480", "560x560", "600x600","640x640", "720x720","800x800"];
 
     //添加单选项：常用值
@@ -373,17 +373,17 @@ function ResetButtonStatus() {
 
 //数据转为csv文本文件
 function toCsv(header, data, filename) {
-    let rows = "";
-    let row = header.join(",");
+    var rows = "";
+    var row = header.join(",");
     rows += row + "\n";
 
     for (let key in data) {
         rows += data[key].join(",") + "\n";
     }
 
-    let blob = new Blob(["\ufeff" + rows], { type: "text/csv;charset=utf-8;" });
-    let encodedUrl = URL.createObjectURL(blob);
-    let url = document.createElement("a");
+    var blob = new Blob(["\ufeff" + rows], { type: "text/csv;charset=utf-8;" });
+    var encodedUrl = URL.createObjectURL(blob);
+    var url = document.createElement("a");
     url.setAttribute("href", encodedUrl);
     url.setAttribute("download", filename + ".csv");
     document.body.appendChild(url);
@@ -401,7 +401,7 @@ function addPageOrdersToList() {
     console.time("processOrderList");
     //遍历每条订单记录
     for (let order of mainOrders) {
-        let orderItem = processOrderList(order);
+        var orderItem = processOrderList(order);
 
         if (!orderItem) {
             continue;
@@ -420,10 +420,10 @@ function addPageOrdersToList() {
 
     //通过交易快照获取商品信息
     //open("https://buyertrade.taobao.com/trade/detail/tradeSnap.htm"); //打开交易快照页面
-    var isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
+    const isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
     if (isEnableSnapProductName === true) {
-        var snapUrlIndex = orderHeaderList.indexOf("交易快照");
-        var snapshotProductNameIndex = orderHeaderList.indexOf("快照商品名称");
+        const snapUrlIndex = orderHeaderList.indexOf("交易快照");
+        const snapshotProductNameIndex = orderHeaderList.indexOf("快照商品名称");
         var snapUrl = null;
 
         Toast("正在获取快照商品名称...", true);
@@ -479,7 +479,7 @@ function exportOrdersList() {
 
 //清空订单数据
 function clearOrdersList() {
-    let count = Object.keys(orderList).length;
+    const count = Object.keys(orderList).length;
     orderList = {};
 
     Toast("清空了: " + count + " 条订单数据!");
@@ -559,7 +559,7 @@ function readLocalStorageData() {
 
 //改变项目标题
 function changeOrderListHeader() {
-    var textareaContent = document.getElementById("orderListHeader").value;
+    const textareaContent = document.getElementById("orderListHeader").value;
 
     if (textareaContent.search(/\S+/) === -1) {
         textareaContent = orderHeaderList.join("\n") + "\n";
@@ -597,7 +597,7 @@ function resetOrderListHeader() {
 
 //改变黑名单列表
 function changeBlackListKey() {
-    var textareaContent = document.getElementById("BlackListKey").value;
+    const textareaContent = document.getElementById("BlackListKey").value;
 
     if (textareaContent.search(/\S+/) === -1) {
         document.getElementById("BlackListKey").value = "";
@@ -634,7 +634,7 @@ function resetBlackList() {
 
 //启用/禁用 商品名黑名单过滤
 function changeBlackListStatus() {
-    let isEnableBlackListStatus = document.getElementById("BlackListStatus").checked;
+    const isEnableBlackListStatus = document.getElementById("BlackListStatus").checked;
 
     if (isEnableBlackListStatus === true) {
         document.getElementById("resetBlackList").disabled = false;
@@ -653,7 +653,7 @@ function changeBlackListStatus() {
 
 //启用/禁用 快照获取随机延时
 function changeDelayStatus() {
-    let isEnableDelayStatus = document.getElementById("DelayStatus").checked;
+    const isEnableDelayStatus = document.getElementById("DelayStatus").checked;
 
     if (isEnableDelayStatus === true) {
         Toast("启用快照获取随机延时!");
@@ -666,7 +666,7 @@ function changeDelayStatus() {
 
 //启用/禁用 快照商品名称获取
 function changeSnapProductNameStatus() {
-    let isEnableSnapProductNameStatus = document.getElementById("SnapProductNameStatus").checked;
+    const isEnableSnapProductNameStatus = document.getElementById("SnapProductNameStatus").checked;
 
     if (isEnableSnapProductNameStatus === true) {
         Toast("启用快照商品名称获取!");
@@ -679,7 +679,7 @@ function changeSnapProductNameStatus() {
 
 //启用/禁用 Excel数据格式适配
 function changeDataFormatAdaptationStatus() {
-    let isEnableDataFormatAdaptationStatus = document.getElementById("DataFormatAdaptationStatus").checked;
+    const isEnableDataFormatAdaptationStatus = document.getElementById("DataFormatAdaptationStatus").checked;
 
     if (isEnableDataFormatAdaptationStatus === true) {
         Toast("启用Excel数据格式适配!");
@@ -692,7 +692,7 @@ function changeDataFormatAdaptationStatus() {
 
 //启用/禁用 订单详情链接一致化
 function changeUrlUniformizationStatus() {
-    let isEnableUrlUniformizationStatus = document.getElementById("UrlUniformizationStatus").checked;
+    const isEnableUrlUniformizationStatus = document.getElementById("UrlUniformizationStatus").checked;
 
     if (isEnableUrlUniformizationStatus === true) {
         Toast("启用订单详情链接一致化!");
@@ -705,8 +705,8 @@ function changeUrlUniformizationStatus() {
 
 // 改变图片尺寸大小
 function changeImageDimensions() {
-    var radios = document.getElementsByName("imageDimensions");
-    var ListSelect = document.getElementById("imageDimensionsListSelect");
+    const radios = document.getElementsByName("imageDimensions");
+    const ListSelect = document.getElementById("imageDimensionsListSelect");
     var imageDimensionsTemp = null;
 
     for (let radio of radios) {
@@ -717,7 +717,7 @@ function changeImageDimensions() {
     }
 
     if (imageDimensionsTemp.value !== "otherImageDimensions") {
-        var imageDimensionsIndexTemp = imageDimensionsList.indexOf(imageDimensionsTemp.value);
+        const imageDimensionsIndexTemp = imageDimensionsList.indexOf(imageDimensionsTemp.value);
 
         if (imageDimensionsIndexTemp !== -1) {
             imageDimensionsIndex = imageDimensionsIndexTemp;
@@ -733,7 +733,7 @@ function changeImageDimensions() {
 
 // 监听下拉列表的变化，改变图片尺寸大小
 function choseImageDimensions() {
-    var ListSelect = document.getElementById("imageDimensionsListSelect");
+    const ListSelect = document.getElementById("imageDimensionsListSelect");
 
     if (document.getElementById("otherImageDimensions").checked === true) {
         imageDimensionsIndex = ListSelect.selectedIndex;
@@ -748,7 +748,7 @@ function choseImageDimensions() {
 
 //获取交易快照数据
 function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
-    var isenableDelay = document.getElementById("DelayStatus").checked;
+    const isenableDelay = document.getElementById("DelayStatus").checked;
     var randomTimeout = 0;
 
     if (Url === "") {
@@ -764,8 +764,8 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
     httpRequestResult.SnapShotAmount = httpRequestResult.getSnapShotCount;
 
     if (isenableDelay === true) {
-        let min = 500; //毫秒
-        let max = 2000; //毫秒
+        const min = 500; //毫秒
+        const max = 2000; //毫秒
         randomTimeout = Math.round(Math.random() * (max - min)) + min;
     }
 
@@ -787,7 +787,7 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
                     ShotProductName = this.responseText.match(/<title>(.*)<\/title>/)[1];
 
                     //修复商品快照页面中的字符实体显示错误和英文逗号导致的CSV导入Excel后数据错行；
-                    let element = document.createElement("span");
+                    const element = document.createElement("span");
                     element.innerHTML = ShotProductName;
                     element.innerHTML = element.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
                     element.innerHTML = element.innerHTML.replace(/,/g, "，");
@@ -844,10 +844,10 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
 
 //处理订单数据
 function processOrderList(order) {
-    let orderData = {};
-    let textContent = order.textContent;
-    let pattern = /(\d{4}-\d{2}-\d{2})订单号: ()/;
-    let isExist = pattern.exec(textContent);
+    var orderData = {};
+    var textContent = order.textContent;
+    var pattern = /(\d{4}-\d{2}-\d{2})订单号: ()/;
+    var isExist = pattern.exec(textContent);
 
     if (!isExist) {
         console.info("暂未发现订单！");
@@ -890,14 +890,14 @@ function processOrderList(order) {
             refundQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
 
             index++;
-            let orderItemIndex = id + index;
+            var orderItemIndex = id + index;
 
             if (ProductNameQuery === null) {
                 break;
             }
 
             //过滤黑名单项：如"保险服务"、"增值服务"、"买家秀"等;
-            var isEnableBlackList = document.getElementById("BlackListStatus").checked;
+            const isEnableBlackList = document.getElementById("BlackListStatus").checked;
             if (isEnableBlackList === true && blackList.length > 0) {
                 var searchResult = false;
 
@@ -952,19 +952,19 @@ function processOrderList(order) {
             }
 
             //Excel数据格式适配
-            var isEnableDataFormatAdaptation = document.getElementById("DataFormatAdaptationStatus").checked;
+            const isEnableDataFormatAdaptation = document.getElementById("DataFormatAdaptationStatus").checked;
             if (isEnableDataFormatAdaptation === true) {
                 orderInfoId = '"' + orderInfoId + '\t"';
                 subOrdersIteminfoId = '"' + subOrdersIteminfoId + '\t"';
             }
 
             //订单详情链接一致化
-            var isEnableUrlUniformization = document.getElementById("UrlUniformizationStatus").checked;
+            const isEnableUrlUniformization = document.getElementById("UrlUniformizationStatus").checked;
             if (isEnableUrlUniformization === true) {
                 //过去的淘宝和天猫订单详情链接为：https://tradearchive.taobao.com/trade/detail/trade_item_detail.htm?bizOrderId=<id>
-                var recentTaoBaoOrderDetailUrlPrefix = "buyertrade.taobao.com/trade/detail/trade_item_detail"; //最近的淘宝订单详情链接前缀
-                var recentTmallOrderDetailUrlPrefix = "trade.tmall.com/detail/orderDetail"; //最近的天猫订单详情链接前缀
-                var passedOrderDetailUrlPrefix = "tradearchive.taobao.com/trade/detail/trade_item_detail"; //过去的淘宝和天猫订单详情链接前缀
+                const recentTaoBaoOrderDetailUrlPrefix = "buyertrade.taobao.com/trade/detail/trade_item_detail"; //最近的淘宝订单详情链接前缀
+                const recentTmallOrderDetailUrlPrefix = "trade.tmall.com/detail/orderDetail"; //最近的天猫订单详情链接前缀
+                const passedOrderDetailUrlPrefix = "tradearchive.taobao.com/trade/detail/trade_item_detail"; //过去的淘宝和天猫订单详情链接前缀
 
                 statusInfoDetailUrl = statusInfoDetailUrl.replace(recentTaoBaoOrderDetailUrlPrefix, passedOrderDetailUrlPrefix);
                 statusInfoDetailUrl = statusInfoDetailUrl.replace(recentTmallOrderDetailUrlPrefix, passedOrderDetailUrlPrefix);
