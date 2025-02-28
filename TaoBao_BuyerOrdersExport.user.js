@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.3.4
+// @version      1.3.5
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、订单实付款、退款状态、订单交易状态、订单详情链接。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键字过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -41,12 +41,12 @@ const defaultOrderHeaderList = [
 const defaultBlackList = ["保险服务", "增值服务", "买家秀"];
 const imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240", "300x300", "320x320", "400x400", "480x480", "560x560", "600x600", "640x640", "720x720", "800x800"];
 
-var httpRequestResult = {
-    SnapShotAmount: 0,
-    getSnapShotCount: 0,
-    iSgetSnapShotFinish: false,
+var httpGetResult = {
+    snapShotCount: 0,
+    snapShotTotal: 0,
+    isSnapShotFinish: false,
 
-    iSFinish: false,
+    isFinish: false,
 };
 //通知气泡默认属性
 function createToast() {
@@ -180,7 +180,7 @@ function addButton(element, onclickFunc, text, id, width, marginLeft) {
 }
 
 //图片尺寸选择默认属性
-function createImageDimensionsListSelect(element) {
+function createListSelect(element) {
     const ListTitle = document.createElement("p");
     const ListSelect = document.createElement("select");
 
@@ -279,10 +279,10 @@ if (orderListPage.exec(document.URL)) {
 
     createToast();
 
-    createTextarea(userMainTextCol1, changeOrderListHeader, "项目标题", "orderListHeader", "100px", 20);
+    createTextarea(userMainTextCol1, changeOrderHeaderList, "项目标题", "orderHeaderList", "100px", 20);
     createTextarea(userMainTextCol2, changeBlackListKey, "黑名单关键词", "BlackListKey", "120px", 8);
 
-    createImageDimensionsListSelect(userMainListRow0Form);
+    createListSelect(userMainListRow0Form);
 
     addCheckbox(userMainListRow1Form, changeBlackListStatus, "黑名单过滤", "BlackListStatus");
     addCheckbox(userMainListRow1Form, changeDelayStatus, "数据获取延时", "DelayStatus");
@@ -291,17 +291,17 @@ if (orderListPage.exec(document.URL)) {
     addCheckbox(userMainListRow1Form, changeUrlUniformizationStatus, "链接一致化", "UrlUniformizationStatus");
 
     addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "130px", "20px");
-    addButton(userMainListRow2, resetOrderListHeader, "重置项目标题", "resetOrderListHeader", "130px", "20px");
+    addButton(userMainListRow2, resetOrderHeader, "重置项目标题", "resetOrderHeader", "130px", "20px");
     addButton(userMainListRow2, readLocalStorageData, "读取本地存储", "readLocalStorageData", "130px", "20px");
     addButton(userMainListRow2, writeLocalStorageData, "写入本地存储", "writeLocalStorageData", "130px", "20px");
 
-    addButton(userMainListRow3, clearOrdersList, "清空订单数据", "clearOrdersList", "170px", "35px");
-    addButton(userMainListRow3, exportOrdersList, "导出订单数据", "exportOrdersList", "170px", "35px");
+    addButton(userMainListRow3, clearOrdersData, "清空订单数据", "clearOrdersData", "170px", "35px");
+    addButton(userMainListRow3, exportOrdersData, "导出订单数据", "exportOrdersData", "170px", "35px");
     addButton(userMainListRow3, addPageOrdersToList, "添加本页订单", "addPageOrdersToList", "170px", "35px");
 
     setOrderListPageElementStyle();
 
-    resetOrderListHeader();
+    resetOrderHeader();
     resetBlackList();
 
     console.info("在订单列表页面添加控件!");
@@ -400,16 +400,16 @@ function addPageOrdersToList() {
 
     console.time("processOrderList");
     //遍历每条订单记录
-    for (let order of mainOrders) {
-        var orderItem = processOrderList(order);
+    for (let orders of mainOrders) {
+        var ordersData = processOrderList(orders);
 
-        if (!orderItem) {
+        if (!ordersData) {
             continue;
         }
 
-        for (let orderItemKey in orderItem) {
-            orderList[orderItemKey] = orderItem[orderItemKey];
-            pageOrderList[orderItemKey] = orderItem[orderItemKey];
+        for (let orderItemIndex in ordersData) {
+            orderList[orderItemIndex] = ordersData[orderItemIndex];
+            pageOrderList[orderItemIndex] = ordersData[orderItemIndex];
         }
 
         //console.count("order count: ");
@@ -429,10 +429,10 @@ function addPageOrdersToList() {
         Toast("正在获取快照商品名称...", true);
         console.info("正在获取快照商品名称...");
 
-        for (let orderItemKey in pageOrderList) {
-            snapUrl = pageOrderList[orderItemKey][snapUrlIndex];
+        for (let orderItemIndex in pageOrderList) {
+            snapUrl = pageOrderList[orderItemIndex][snapUrlIndex];
 
-            getDataFromSnapShot(orderItemKey, snapshotProductNameIndex, snapUrl);
+            getDataFromSnapShot(orderItemIndex, snapshotProductNameIndex, snapUrl);
             //break; //TODO:测试单条快照记录
         }
     }
@@ -451,12 +451,12 @@ function addPageOrdersToList() {
 }
 
 //导出订单数据
-function exportOrdersList() {
-    if (httpRequestResult.iSgetSnapShotFinish === true) {
-        httpRequestResult.iSFinish = true;
+function exportOrdersData() {
+    if (httpGetResult.isSnapShotFinish === true) {
+        httpGetResult.isFinish = true;
     }
 
-    if (httpRequestResult.iSFinish === false) {
+    if (httpGetResult.isFinish === false) {
         alert("请等待添加成功后再导出！");
         return;
     }
@@ -478,7 +478,7 @@ function exportOrdersList() {
 }
 
 //清空订单数据
-function clearOrdersList() {
+function clearOrdersData() {
     const count = Object.keys(orderList).length;
     orderList = {};
 
@@ -526,7 +526,7 @@ function readLocalStorageData() {
 
         if (orderHeaderListString !== null) {
             orderHeaderList = orderHeaderListString.split("\n");
-            document.getElementById("orderListHeader").value = orderHeaderList.join("\n") + "\n";
+            document.getElementById("orderHeaderList").value = orderHeaderList.join("\n") + "\n";
         } else {
             Toast("本地存储的项目标题为空！");
             console.info("本地存储的项目标题为空！");
@@ -558,13 +558,13 @@ function readLocalStorageData() {
 }
 
 //改变项目标题
-function changeOrderListHeader() {
-    const textareaContent = document.getElementById("orderListHeader").value;
+function changeOrderHeaderList() {
+    var textareaContent = document.getElementById("orderHeaderList").value;
 
     if (textareaContent.search(/\S+/) === -1) {
         textareaContent = orderHeaderList.join("\n") + "\n";
 
-        document.getElementById("orderListHeader").value = textareaContent;
+        document.getElementById("orderHeaderList").value = textareaContent;
 
         Toast("项目标题不能为空!");
         console.info("项目标题不能为空!");
@@ -573,7 +573,7 @@ function changeOrderListHeader() {
         orderHeaderList = textareaContent.match(/\S+/g);
         textareaContent = orderHeaderList.join("\n") + "\n";
 
-        document.getElementById("orderListHeader").value = textareaContent;
+        document.getElementById("orderHeaderList").value = textareaContent;
 
         Toast("设置项目标题!");
         console.info("设置项目标题!");
@@ -582,13 +582,13 @@ function changeOrderListHeader() {
 }
 
 //重置项目标题
-function resetOrderListHeader() {
+function resetOrderHeader() {
     var textareaContent = "";
 
     orderHeaderList = defaultOrderHeaderList;
     textareaContent = orderHeaderList.join("\n") + "\n";
 
-    document.getElementById("orderListHeader").value = textareaContent;
+    document.getElementById("orderHeaderList").value = textareaContent;
 
     Toast("重置项目标题!");
     console.info("重置项目标题!");
@@ -597,7 +597,7 @@ function resetOrderListHeader() {
 
 //改变黑名单列表
 function changeBlackListKey() {
-    const textareaContent = document.getElementById("BlackListKey").value;
+    var textareaContent = document.getElementById("BlackListKey").value;
 
     if (textareaContent.search(/\S+/) === -1) {
         document.getElementById("BlackListKey").value = "";
@@ -747,21 +747,21 @@ function choseImageDimensions() {
 }
 
 //获取交易快照数据
-function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
+function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
     const isenableDelay = document.getElementById("DelayStatus").checked;
     var randomTimeout = 0;
 
-    if (Url === "") {
+    if (snapUrl === "") {
         console.info("订单号[" + orderItemIndex + "]快照链接为空！");
         return;
     }
 
-    if (httpRequestResult.getSnapShotCount === 0) {
+    if (httpGetResult.snapShotCount === 0) {
         console.time("getDataFromSnapShot");
     }
 
-    httpRequestResult.getSnapShotCount++;
-    httpRequestResult.SnapShotAmount = httpRequestResult.getSnapShotCount;
+    httpGetResult.snapShotCount++;
+    httpGetResult.snapShotTotal = httpGetResult.snapShotCount;
 
     if (isenableDelay === true) {
         const min = 500; //毫秒
@@ -777,7 +777,7 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
                 var ResponseJSONData = "";
                 var getWayid = 1;
 
-                httpRequestResult.getSnapShotCount--;
+                httpGetResult.snapShotCount--;
 
                 //console.info("交易快照网页响应文本:" + this.responseText);
 
@@ -819,25 +819,25 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, Url) {
 
                 console.info("快照商品名称[" + orderItemIndex + "]:" + ShotProductName);
 
-                if (httpRequestResult.getSnapShotCount === 0) {
-                    httpRequestResult.iSgetSnapShotFinish = true;
-
+                if (httpGetResult.snapShotCount === 0) {
+                    httpGetResult.isSnapShotFinish = true;
+                    
                     console.timeEnd("getDataFromSnapShot");
 
                     document.getElementById("addPageOrdersToList").style.background = "#4CAF50";
                     document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
-                    Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpRequestResult.SnapShotAmount + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
-                    console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpRequestResult.SnapShotAmount + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
+                    Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
+                    console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
 
-                    httpRequestResult.SnapShotAmount = 0;
+                    httpGetResult.snapShotTotal = 0;
 
                     console.info("本页订单数据:");
                     console.info(pageOrderList);
                 }
             }
         };
-        xhttp.open("GET", Url);
+        xhttp.open("GET", snapUrl);
         xhttp.send();
     }, randomTimeout);
 }
@@ -858,16 +858,16 @@ function processOrderList(order) {
         var index = 0;
 
         var ShopNameQuery = null;
-        var picUrlQuery = null;
+        var ProductPicUrlQuery = null;
         var ProductUrlQuery = null;
         var ProductNameQuery = null;
         var snapshotUrlQuery = null;
         var SKUNameQuery = null;
         var RealPriceQuery = null;
-        var countQuery = null;
-        var refundQuery = null;
+        var quantityQuery = null;
+        var refundStatusQuery = null;
         var actualFeeQuery = null;
-        var statusQuery = null;
+        var tradeStatusQuery = null;
         var DetailUrlQuery1 = null;
         var DetailUrlQuery2 = null;
 
@@ -875,19 +875,19 @@ function processOrderList(order) {
             if (index === 0) {
                 ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
                 actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
-                statusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0.0']");
+                tradeStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0.0']");
                 DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
                 DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
             }
 
-            picUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0.0']");
+            ProductPicUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0.0']");
             ProductUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0']");
             ProductNameQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0.1']");
             snapshotUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.1']");
             SKUNameQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.1']");
             RealPriceQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$1.0.1.1']");
-            countQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$2.0.0']");
-            refundQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
+            quantityQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$2.0.0']");
+            refundStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
 
             index++;
             var orderItemIndex = id + index;
@@ -930,16 +930,16 @@ function processOrderList(order) {
             var orderInfoDate = date;
             var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
             var subOrdersIteminfoId = orderItemIndex;
-            var subOrdersIteminfoPicUrl = picUrlQuery === null ? "" : picUrlQuery.src;
+            var subOrdersIteminfoPicUrl = ProductPicUrlQuery === null ? "" : ProductPicUrlQuery.src;
             var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
             var subOrdersIteminfoProductName = ProductNameQuery.textContent;
             var subOrdersIteminfoSnapUrl = snapshotUrlQuery === null ? "" : snapshotUrlQuery.href;
             var subOrdersIteminfoSKUName = SKUNameQuery === null ? "" : SKUNameQuery.innerText;
             var subOrdersPriceinfoRealPrice = RealPriceQuery === null ? "" : RealPriceQuery.textContent;
-            var subOrdersQuantityCount = countQuery === null ? "" : countQuery.textContent;
-            var subOrdersRefund = refundQuery === null ? "" : refundQuery.innerText === "查看退款" ? "退款" : "";
+            var subOrdersQuantityCount = quantityQuery === null ? "" : quantityQuery.textContent;
+            var subOrdersRefund = refundStatusQuery === null ? "" : refundStatusQuery.innerText === "查看退款" ? "退款" : "";
             var payInfoActualFee = actualFeeQuery === null ? "" : actualFeeQuery.textContent;
-            var statusInfoStatus = statusQuery === null ? "" : statusQuery.textContent;
+            var statusInfoStatus = tradeStatusQuery === null ? "" : tradeStatusQuery.textContent;
             var statusInfoDetailUrl = DetailUrlQuery1 === null ? (DetailUrlQuery2 === null ? "" : DetailUrlQuery2.href) : DetailUrlQuery1.href;
 
             var subOrdersSnapshotProductName = null;
