@@ -1,21 +1,24 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      1.3.5
-// @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类、商品主图链接、商品链接、商品交易快照链接、单价、数量、订单实付款、退款状态、订单交易状态、订单详情链接。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键字过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
+// @version      2.0.0
+// @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类名称、商品主图链接、商品链接、商品交易快照链接、单价、数量、商品退款状态、订单实付款、订单交易状态、订单详情链接。并支持添加额外的下单日期时间、快递物流公司、快递物流单号信息。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键词过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.min.js
-// @grant        none
+// @connect      taobao.com
+// @connect      tmall.com
+// @grant        GM_xmlhttpRequest
 // @license      MIT
 // @supportURL   https://github.com/Sky-seeker/BuyerOrdersExport
 // ==/UserScript==
 
 var orderList = {};
+var orderDetail = {};
 var pageOrderList = {};
 var orderHeaderList = [];
 var blackList = [];
 var imageDimensionsIndex = 0;
+var ToastTimeout = null;
 
 const fileNamePrefix = "淘宝买家订单数据导出_";
 const fileNameSuffix = "";
@@ -26,28 +29,32 @@ const defaultOrderHeaderList = [
     "子订单编号",
     "店铺名称",
     "商品名称",
-    "快照商品名称",
-    "商品分类",
-    "商品主图",
+    "快照名称",
+    "分类名称",
+    "主图链接",
     "商品链接",
-    "交易快照",
+    "快照链接",
     "单价",
     "数量",
-    "实付款",
-    "退款状态",
-    "交易状态",
+    "商品退款状态",
+    "订单实付款",
+    "订单交易状态",
     "订单详情链接",
 ];
+
 const defaultBlackList = ["保险服务", "增值服务", "买家秀"];
 const imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240", "300x300", "320x320", "400x400", "480x480", "560x560", "600x600", "640x640", "720x720", "800x800"];
 
 var httpGetResult = {
     snapShotCount: 0,
     snapShotTotal: 0,
-    isSnapShotFinish: false,
-
-    isFinish: false,
+    isSnapShotFinish: true,
+    orderDetailCount: 0,
+    orderDetailTotal: 0,
+    isOrderDetailFinish: true,
+    isFinish: true,
 };
+
 //通知气泡默认属性
 function createToast() {
     const Toast = document.createElement("div");
@@ -79,9 +86,11 @@ function Toast(toastTextContent, alwaysShow = false) {
     Toast.textContent = toastTextContent;
 
     if (alwaysShow === false) {
-        setTimeout(function () {
+        ToastTimeout = setTimeout(function () {
             Toast.style.visibility = "hidden";
         }, 3000);
+    } else {
+        clearTimeout(ToastTimeout);
     }
 }
 
@@ -180,19 +189,19 @@ function addButton(element, onclickFunc, text, id, width, marginLeft) {
 }
 
 //图片尺寸选择默认属性
-function createListSelect(element) {
+function createListSelect(element, name) {
     const ListTitle = document.createElement("p");
     const ListSelect = document.createElement("select");
 
-    ListTitle.id = "imageDimensionsListTitle";
+    ListTitle.id = name + "ListTitle";
     ListTitle.textContent = "图片尺寸：";
 
-    ListSelect.id = "imageDimensionsListSelect";
-    ListSelect.name = "imageDimensions";
+    ListSelect.id = name + "ListSelect";
+    ListSelect.name = name;
 
     ListTitle.style.float = "left";
     ListTitle.style.fontSize = "15px";
-    ListTitle.style.fontWeight = 700;
+    ListTitle.style.fontWeight = "700";
 
     ListSelect.style.width = "85px";
     ListSelect.style.marginLeft = "5px";
@@ -213,21 +222,18 @@ function createListSelect(element) {
 
     element.appendChild(ListTitle);
 
-    //const imageDimensionsList = ["80x80", "100x100", "160x160", "200x200", "240x240","300x300","320x320",
-    //    "400x400","480x480", "560x560", "600x600","640x640", "720x720","800x800"];
-
     //添加单选项：常用值
-    addRadio(element, changeImageDimensions, "imageDimensions", "80x80", "80x80", "80x80");
-    addRadio(element, changeImageDimensions, "imageDimensions", "300x300", "300x300", "300x300");
-    addRadio(element, changeImageDimensions, "imageDimensions", "560x560", "560x560", "560x560");
-    addRadio(element, changeImageDimensions, "imageDimensions", "800x800", "800x800", "800x800");
-    addRadio(element, changeImageDimensions, "imageDimensions", "其它", "otherImageDimensions", "otherImageDimensions");
+    addRadio(element, changeImageDimensions, name, "80x80", "80x80", "80x80");
+    addRadio(element, changeImageDimensions, name, "300x300", "300x300", "300x300");
+    addRadio(element, changeImageDimensions, name, "560x560", "560x560", "560x560");
+    addRadio(element, changeImageDimensions, name, "800x800", "800x800", "800x800");
+    addRadio(element, changeImageDimensions, name, "其它", "otherImageDimensions", "otherImageDimensions");
 
     element.appendChild(ListSelect);
 }
 
 //在订单列表页面添加控件
-const orderListPage = /(http|https):\/\/buyertrade\.taobao.*?\/trade/g;
+const orderListPage = /https?:\/\/buyertrade\.taobao.*?\/trade/g;
 if (orderListPage.exec(document.URL)) {
     const orderListMain = document.getElementById("J_bought_main");
 
@@ -279,10 +285,10 @@ if (orderListPage.exec(document.URL)) {
 
     createToast();
 
-    createTextarea(userMainTextCol1, changeOrderHeaderList, "项目标题", "orderHeaderList", "100px", 20);
+    createTextarea(userMainTextCol1, changeOrderHeaderList, "订单项目标题", "orderHeaderList", "100px", 20);
     createTextarea(userMainTextCol2, changeBlackListKey, "黑名单关键词", "BlackListKey", "120px", 8);
 
-    createListSelect(userMainListRow0Form);
+    createListSelect(userMainListRow0Form, "imageDimensions");
 
     addCheckbox(userMainListRow1Form, changeBlackListStatus, "黑名单过滤", "BlackListStatus");
     addCheckbox(userMainListRow1Form, changeDelayStatus, "数据获取延时", "DelayStatus");
@@ -290,14 +296,15 @@ if (orderListPage.exec(document.URL)) {
     addCheckbox(userMainListRow1Form, changeDataFormatAdaptationStatus, "Excel 格式适配", "DataFormatAdaptationStatus");
     addCheckbox(userMainListRow1Form, changeUrlUniformizationStatus, "链接一致化", "UrlUniformizationStatus");
 
-    addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "130px", "20px");
     addButton(userMainListRow2, resetOrderHeader, "重置项目标题", "resetOrderHeader", "130px", "20px");
+    addButton(userMainListRow2, resetBlackList, "重置黑名单列表", "resetBlackList", "130px", "20px");
     addButton(userMainListRow2, readLocalStorageData, "读取本地存储", "readLocalStorageData", "130px", "20px");
     addButton(userMainListRow2, writeLocalStorageData, "写入本地存储", "writeLocalStorageData", "130px", "20px");
 
-    addButton(userMainListRow3, clearOrdersData, "清空订单数据", "clearOrdersData", "170px", "35px");
-    addButton(userMainListRow3, exportOrdersData, "导出订单数据", "exportOrdersData", "170px", "35px");
-    addButton(userMainListRow3, addPageOrdersToList, "添加本页订单", "addPageOrdersToList", "170px", "35px");
+    addButton(userMainListRow3, clearOrdersData, "清空订单数据", "clearOrdersData", "130px", "20px");
+    addButton(userMainListRow3, exportOrdersData, "导出订单数据", "exportOrdersData", "130px", "20px");
+    addButton(userMainListRow3, addOrdersToDetail, "添加订单详情", "addOrdersToDetail", "130px", "20px");
+    addButton(userMainListRow3, addPageOrdersToList, "添加本页订单", "addPageOrdersToList", "130px", "20px");
 
     setOrderListPageElementStyle();
 
@@ -320,8 +327,6 @@ function setOrderListPageElementStyle() {
     const userMainListRow1 = document.getElementById("userMainListRow1");
     const userMainListRow2 = document.getElementById("userMainListRow2");
     const userMainListRow3 = document.getElementById("userMainListRow3");
-
-    const imageDimensionsListTitle = document.getElementById("imageDimensionsListTitle");
 
     userMain.style.height = "180px";
 
@@ -367,27 +372,9 @@ function setOrderListPageElementStyle() {
 //重置按钮状态
 function ResetButtonStatus() {
     document.getElementById("addPageOrdersToList").style.background = "#409EFF";
+    document.getElementById("addOrdersToDetail").style.background = "#409EFF";
 
     document.getElementById("tp-bought-root").removeEventListener("click", ResetButtonStatus);
-}
-
-//数据转为csv文本文件
-function toCsv(header, data, filename) {
-    var rows = "";
-    var row = header.join(",");
-    rows += row + "\n";
-
-    for (let key in data) {
-        rows += data[key].join(",") + "\n";
-    }
-
-    var blob = new Blob(["\ufeff" + rows], { type: "text/csv;charset=utf-8;" });
-    var encodedUrl = URL.createObjectURL(blob);
-    var url = document.createElement("a");
-    url.setAttribute("href", encodedUrl);
-    url.setAttribute("download", filename + ".csv");
-    document.body.appendChild(url);
-    url.click();
 }
 
 //添加本页订单数据
@@ -398,6 +385,8 @@ function addPageOrdersToList() {
 
     pageOrderList = {};
 
+    Toast("正在获取订单列表数据...", true);
+    console.info("开始获取订单列表数据...");
     console.time("processOrderList");
     //遍历每条订单记录
     for (let orders of mainOrders) {
@@ -414,36 +403,51 @@ function addPageOrdersToList() {
 
         //console.count("order count: ");
 
-        //break; //TODO:测试单条订单记录
+        //break; //订单列表数据-单条订单测试
     }
     console.timeEnd("processOrderList");
+    console.info("获取订单列表数据结束！");
 
     //通过交易快照获取商品信息
-    //open("https://buyertrade.taobao.com/trade/detail/tradeSnap.htm"); //打开交易快照页面
     const isEnableSnapProductName = document.getElementById("SnapProductNameStatus").checked;
+    var isAllEmptySnapUrl = false;
     if (isEnableSnapProductName === true) {
-        const snapUrlIndex = orderHeaderList.indexOf("交易快照");
-        const snapshotProductNameIndex = orderHeaderList.indexOf("快照商品名称");
-        var snapUrl = null;
-
         Toast("正在获取快照商品名称...", true);
-        console.info("正在获取快照商品名称...");
+        console.info("开始获取快照商品名称...");
+
+        var emptySnapUrlCount = 0;
+        const pageOrderListlength = Object.keys(pageOrderList).length;
+
+        httpGetResult.isSnapShotFinish = false;
 
         for (let orderItemIndex in pageOrderList) {
-            snapUrl = pageOrderList[orderItemIndex][snapUrlIndex];
+            var snapUrl = pageOrderList[orderItemIndex]["snapURL"];
 
-            getDataFromSnapShot(orderItemIndex, snapshotProductNameIndex, snapUrl);
-            //break; //TODO:测试单条快照记录
+            if (snapUrl !== "") {
+                getDataFromSnapShot(orderItemIndex, "snapName", snapUrl);
+                //break; //订单快照数据-单条快照测试
+            } else {
+                console.info("子订单号[" + orderItemIndex + "]快照链接为空！");
+
+                emptySnapUrlCount++;
+                if (emptySnapUrlCount === pageOrderListlength) {
+                    isAllEmptySnapUrl = true;
+
+                    console.info("当页订单列表的快照链接全为空！");
+                    console.info("获取订单快照数据结束！");
+                }
+
+                continue;
+            }
         }
     }
 
-    if (isEnableSnapProductName === false) {
+    if (isEnableSnapProductName === false || isAllEmptySnapUrl === true) {
         document.getElementById("addPageOrdersToList").style.background = "#4CAF50";
-
         document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
-        Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
-        console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,已添加 " + Object.keys(orderList).length + " 条订单。");
+        Toast("添加 " + Object.keys(pageOrderList).length + " 条子订单,已添加 " + Object.keys(orderList).length + " 条子订单。");
+        console.info("添加 " + Object.keys(pageOrderList).length + " 条子订单,已添加 " + Object.keys(orderList).length + " 条子订单。");
 
         console.info("本页订单数据:");
         console.info(pageOrderList);
@@ -452,14 +456,25 @@ function addPageOrdersToList() {
 
 //导出订单数据
 function exportOrdersData() {
-    if (httpGetResult.isSnapShotFinish === true) {
-        httpGetResult.isFinish = true;
+    if (httpGetResult.isSnapShotFinish === false) {
+        httpGetResult.isFinish = false;
+    } else if (httpGetResult.isOrderDetailFinish === false) {
+        httpGetResult.isFinish = false;
+    } else {
+        if (Object.keys(orderList).length === 0) {
+            httpGetResult.isFinish = false;
+        } else {
+            httpGetResult.isFinish = true;
+        }
     }
 
     if (httpGetResult.isFinish === false) {
         alert("请等待添加成功后再导出！");
         return;
     }
+
+    console.info("开始对订单列表数据进行可选功能处理和重定位!");
+    var orderListTemp = postprocessOrderList(orderList);
 
     var dateTimeStr = "";
     var dateTime = new Date(); //获取当前日期
@@ -474,7 +489,7 @@ function exportOrdersData() {
 
     const fileName = fileNamePrefix + dateTimeStr + fileNameSuffix;
 
-    toCsv(orderHeaderList, orderList, fileName);
+    dataToCsv(orderHeaderList, orderListTemp, fileName);
 }
 
 //清空订单数据
@@ -482,8 +497,45 @@ function clearOrdersData() {
     const count = Object.keys(orderList).length;
     orderList = {};
 
-    Toast("清空了: " + count + " 条订单数据!");
-    console.info("清空了: " + count + " 条订单数据!");
+    Toast("清空了: " + count + " 条子订单数据!");
+    console.info("清空了: " + count + " 条子订单数据!");
+}
+
+//添加订单详情
+function addOrdersToDetail() {
+    var orderListTemp = {};
+    orderDetail = {};
+
+    if (Object.keys(orderList).length === 0) {
+        alert("请先添加订单列表数据！");
+        return;
+    }
+
+    document.getElementById("addOrdersToDetail").style.background = "#ff9800";
+
+    httpGetResult.isOrderDetailFinish = false;
+
+    console.info("开始对订单列表数据进行分类和去重");
+    orderListTemp = preprocessOrderList(orderList);
+
+    Toast("正在获取订单详情数据...", true);
+    console.info("开始获取订单详情数据...");
+
+    //orderList: ["taoBaoOrderList"];["tmallOrderList"];["archiveOrderList"];
+    for (let orderClassIndex in orderListTemp) {
+        if (orderClassIndex === "archiveOrderList") {
+            console.info("跳过存档的订单详情数据");
+            continue;
+        }
+
+        console.info("开始获取 " + orderClassIndex.replace("OrderList", "") + " 订单详情数据...");
+
+        for (let orderItemIndex in orderListTemp[orderClassIndex]) {
+            var orderDetailURL = orderListTemp[orderClassIndex][orderItemIndex]["DetailURL"];
+            getDataFromOrderDetail(orderItemIndex, orderDetailURL);
+            //break; //订单详情数据获取-单条测试
+        }
+    }
 }
 
 //写入本地存储: 项目标题 + 黑名单列表
@@ -516,8 +568,6 @@ function writeLocalStorageData() {
 //读取本地存储: 项目标题 + 黑名单列表
 function readLocalStorageData() {
     if (typeof Storage !== "undefined") {
-        var orderHeaderDatalength = 0;
-        var blackListDatalength = 0;
         var orderHeaderListString = "";
         var blackListString = "";
 
@@ -718,7 +768,6 @@ function changeImageDimensions() {
 
     if (imageDimensionsTemp.value !== "otherImageDimensions") {
         const imageDimensionsIndexTemp = imageDimensionsList.indexOf(imageDimensionsTemp.value);
-
         if (imageDimensionsIndexTemp !== -1) {
             imageDimensionsIndex = imageDimensionsIndexTemp;
         }
@@ -746,17 +795,32 @@ function choseImageDimensions() {
     console.log("imageDimensions index: " + imageDimensionsIndex + "    image dimensions: " + imageDimensionsList[imageDimensionsIndex]);
 }
 
+//数据转为csv文本文件
+function dataToCsv(header, data, filename) {
+    var rows = "";
+    var row = header.join(",");
+    rows += row + "\n";
+
+    for (let key in data) {
+        rows += data[key].join(",") + "\n";
+    }
+
+    var blob = new Blob(["\ufeff" + rows], { type: "text/csv;charset=utf-8;" });
+    var encodedUrl = URL.createObjectURL(blob);
+    var url = document.createElement("a");
+    url.setAttribute("href", encodedUrl);
+    url.setAttribute("download", filename + ".csv");
+    document.body.appendChild(url);
+    url.click();
+}
+
 //获取交易快照数据
 function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
     const isenableDelay = document.getElementById("DelayStatus").checked;
     var randomTimeout = 0;
 
-    if (snapUrl === "") {
-        console.info("订单号[" + orderItemIndex + "]快照链接为空！");
-        return;
-    }
-
     if (httpGetResult.snapShotCount === 0) {
+        httpGetResult.snapShotTotal = 0;
         console.time("getDataFromSnapShot");
     }
 
@@ -764,8 +828,8 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
     httpGetResult.snapShotTotal = httpGetResult.snapShotCount;
 
     if (isenableDelay === true) {
-        const min = 500; //毫秒
-        const max = 2000; //毫秒
+        const min = 1000; //毫秒
+        const max = 3000; //毫秒
         randomTimeout = Math.round(Math.random() * (max - min)) + min;
     }
 
@@ -773,64 +837,75 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
         const xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                var ShotProductName = "";
-                var ResponseJSONData = "";
-                var getWayid = 1;
+                var ShotProductName = null;
+                var JSONString = null;
+                var JSONData = {};
 
                 httpGetResult.snapShotCount--;
 
-                //console.info("交易快照网页响应文本:" + this.responseText);
+                //console.info("交易快照网页链接:" + snapUrl);
 
-                if ((getWayid = 1)) {
+                var responseString = this.responseText;
+                //console.info("交易快照网页响应文本:" + responseString);
+
+                if (ShotProductName === null) {
                     //在交易快照页面通过正则表达式获取HTML数据后获取标题
                     //<title>原装正品 0805贴片电阻 10&amp;Omega; 10欧 1/8W 精度&amp;plusmn;1% （50只）</title>
-                    ShotProductName = this.responseText.match(/<title>(.*)<\/title>/)[1];
+                    ShotProductName = responseString.match(/<title>(.*)<\/title>/);
+                    //console.info("快照网页响应文本 HTML数据 匹配部分:" + ShotProductName);
 
-                    //修复商品快照页面中的字符实体显示错误和英文逗号导致的CSV导入Excel后数据错行；
-                    const element = document.createElement("span");
-                    element.innerHTML = ShotProductName;
-                    element.innerHTML = element.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
-                    element.innerHTML = element.innerHTML.replace(/,/g, "，");
-                    ShotProductName = element.innerText;
-                    element.remove();
+                    if (ShotProductName !== null) {
+                        ShotProductName = ShotProductName[1];
 
-                    console.info("快照网页响应文本 HTML数据 标题部分:" + ShotProductName);
-                }
+                        //修复商品快照页面中的字符实体显示错误和英文逗号导致的CSV导入Excel后数据错行；
+                        const element = document.createElement("span");
+                        element.innerHTML = ShotProductName;
+                        element.innerHTML = element.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
+                        element.innerHTML = element.innerHTML.replace(/,/g, "，");
+                        ShotProductName = element.innerText;
+                        element.remove();
 
-                if ((getWayid = 2)) {
-                    //在交易快照页面通过正则表达式获取JSON数据后获取标题
-                    //var data = JSON.parse('{......}');
-                    ResponseJSONData = this.responseText.match(/data = JSON\.parse\('(.*)'\)\;/);
-                    if (ResponseJSONData !== null) {
-                        ResponseJSONData = ResponseJSONData[1];
-                        ResponseJSONData = ResponseJSONData.replace(/\\u/g, "%u");
-                        ResponseJSONData = unescape(ResponseJSONData);
-                        ResponseJSONData = ResponseJSONData.replace(/\\\"/g, '"');
-                        ResponseJSONData = ResponseJSONData.replace(/\\\//g, "/");
-                        var data = JSON.parse(ResponseJSONData);
-                        ShotProductName = data["baseSnapDO"]["itemSnapDO"]["title"];
-
-                        console.info("快照网页响应文本 JSON数据 标题部分:" + ShotProductName);
+                        //console.info("快照网页响应文本 HTML数据 标题部分:" + ShotProductName);
                     }
                 }
+
+                if (ShotProductName === null) {
+                    //在交易快照页面通过正则表达式获取JSON数据后获取标题
+                    //var data = JSON.parse('{......}');
+                    JSONString = responseString.match(/data = JSON\.parse\('(.*)'\);/);
+                    //console.info("快照网页响应文本 JSON数据 匹配部分:" + JSONString);
+
+                    if (JSONString !== null) {
+                        JSONString = JSONString[1];
+
+                        JSONString = JSONString.replace(/\\u/g, "%u");
+                        JSONString = JSONString.replace(/\\(.)/g, "$1");
+                        JSONString = unescape(JSONString);
+
+                        JSONData = JSON.parse(JSONString);
+                        ShotProductName = JSONData["baseSnapDO"]["itemSnapDO"]["title"];
+
+                        //console.info("快照网页响应文本 JSON数据 标题部分:" + ShotProductName);
+                    }
+                }
+
+                //console.info("快照商品名称[" + orderItemIndex + "]:" + ShotProductName);
+                console.info("正在获取快照商品名称...");
 
                 pageOrderList[orderItemIndex][orderItemDataIndex] = ShotProductName;
                 orderList[orderItemIndex][orderItemDataIndex] = ShotProductName;
 
-                console.info("快照商品名称[" + orderItemIndex + "]:" + ShotProductName);
-
                 if (httpGetResult.snapShotCount === 0) {
                     httpGetResult.isSnapShotFinish = true;
-                    
+
                     console.timeEnd("getDataFromSnapShot");
+                    console.info("获取订单快照数据结束！");
 
                     document.getElementById("addPageOrdersToList").style.background = "#4CAF50";
                     document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
 
-                    Toast("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
-                    console.info("添加 " + Object.keys(pageOrderList).length + " 条订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条订单。");
-
-                    httpGetResult.snapShotTotal = 0;
+                    Toast("添加 " + Object.keys(pageOrderList).length + " 条子订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条子订单。");
+                    console.info("添加 " + Object.keys(pageOrderList).length + " 条子订单,添加 " + httpGetResult.snapShotTotal + " 条快照,已添加 " + Object.keys(orderList).length + " 条子订单。");
 
                     console.info("本页订单数据:");
                     console.info(pageOrderList);
@@ -842,9 +917,488 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
     }, randomTimeout);
 }
 
+//:获取订单详情数据
+function getDataFromOrderDetail(orderItemIndex, orderDetailURL) {
+    const isenableDelay = document.getElementById("DelayStatus").checked;
+    var randomTimeout = 0;
+
+    if (httpGetResult.orderDetailCount === 0) {
+        httpGetResult.orderDetailTotal = 0;
+        console.time("getDataFromOrderDetail");
+    }
+
+    httpGetResult.orderDetailCount++;
+    httpGetResult.orderDetailTotal = httpGetResult.orderDetailCount;
+
+    if (isenableDelay === true) {
+        const min = 1000; //毫秒
+        const max = 3000; //毫秒
+        randomTimeout = Math.round(Math.random() * (max - min)) + min;
+    }
+
+    //console.info("开始获取订单详情数据...");
+    //console.info("订单详情链接为[" + orderItemIndex + "]:" + orderDetailURL);
+    setTimeout(function () {
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: orderDetailURL,
+            onload: function (response) {
+                httpGetResult.orderDetailCount--;
+
+                var responseString = response.responseText;
+                //console.info("订单详情网页响应文本:" + responseString);
+
+                //在订单详情页面通过正则表达式获取JSON数据
+                var taoBaoOrderDetailDataString = responseString.match(/data = JSON\.parse\('(.*)'\);/);
+                var tmallOrderDetailDataString = responseString.match(/var detailData = (.*)/);
+
+                if (taoBaoOrderDetailDataString !== null) {
+                    praseOrderDetailJSONData(orderItemIndex, taoBaoOrderDetailDataString[1], "taoBaoOrderDetail");
+                } else if (tmallOrderDetailDataString !== null) {
+                    praseOrderDetailJSONData(orderItemIndex, tmallOrderDetailDataString[1], "tmallOrderDetail");
+                } else {
+                    console.info("详情网页响应文本 JSON数据[" + orderItemIndex + "]: 未找到！");
+                }
+
+                if (httpGetResult.orderDetailCount === 0) {
+                    httpGetResult.isOrderDetailFinish = true;
+
+                    console.timeEnd("getDataFromOrderDetail");
+                    console.info("获取订单详情数据结束！");
+
+                    document.getElementById("addOrdersToDetail").style.background = "#4CAF50";
+                    document.getElementById("tp-bought-root").addEventListener("click", ResetButtonStatus);
+
+                    Toast("添加 " + httpGetResult.orderDetailTotal + " 条订单详情,添加 " + Object.keys(orderDetail).length + " 条详情,已添加 " + Object.keys(orderList).length + " 条子订单。");
+                    console.info("添加 " + httpGetResult.orderDetailTotal + " 条订单详情,添加 " + Object.keys(orderDetail).length + " 条详情,已添加 " + Object.keys(orderList).length + " 条子订单。");
+
+                    console.info("订单详情数据:");
+                    console.info(orderDetail);
+
+                    console.info("开始合并订单列表和订单详情数据");
+                    orderList = mergeDetailAndList(orderList, orderDetail);
+                }
+            },
+        });
+    }, randomTimeout);
+}
+
+//订单列表数据预处理: 分类和去重
+function preprocessOrderList(orderListData) {
+    var DetailUrlDomain = null;
+    var orderInfoIdIndexList = [];
+
+    var orderListCount = {
+        ["allClass"]: 0,
+        ["unique"]: 0,
+        ["taoBao"]: 0,
+        ["tmall"]: 0,
+        ["archive"]: 0,
+    };
+
+    var taoBaoOrderList = {};
+    var tmallOrderList = {};
+    var archiveOrderList = {};
+    var orderListTemp = {};
+
+    for (let orderItemIndex in orderListData) {
+        orderListCount.allClass++;
+
+        var orderInfoId = orderListData[orderItemIndex]["mainOrderID"];
+        DetailUrlDomain = orderListData[orderItemIndex]["DetailURL"].match(/https:\/\/(.*)\.com/);
+        if (DetailUrlDomain !== null) {
+            DetailUrlDomain = DetailUrlDomain[1];
+        }
+
+        //订单去重
+        if (orderInfoIdIndexList.includes(orderInfoId) === false) {
+            orderListCount.unique++;
+            orderInfoIdIndexList.push(orderInfoId);
+        } else {
+            continue;
+        }
+
+        //订单分类
+        if (DetailUrlDomain.includes("trade.taobao") === true) {
+            orderListCount.taoBao++;
+            taoBaoOrderList[orderItemIndex] = orderListData[orderItemIndex];
+        } else if (DetailUrlDomain.includes("trade.tmall") === true) {
+            orderListCount.tmall++;
+            tmallOrderList[orderItemIndex] = orderListData[orderItemIndex];
+        } else if (DetailUrlDomain.includes("tradearchive.taobao") === true) {
+            orderListCount.archive++;
+            archiveOrderList[orderItemIndex] = orderListData[orderItemIndex];
+        } else {
+            Toast("不支持的订单详情类型:" + DetailUrlDomain);
+            console.info("不支持的订单详情类型:" + DetailUrlDomain);
+        }
+    }
+
+    orderListTemp = {
+        ["taoBaoOrderList"]: taoBaoOrderList,
+        ["tmallOrderList"]: tmallOrderList,
+        ["archiveOrderList"]: archiveOrderList,
+    };
+
+    console.info("总共 " + orderListCount.allClass + " 个子订单。去重后为" + orderListCount.unique + "个订单。");
+    console.info("总共 " + orderListCount.unique + " 个订单。分类后为" + orderListCount.taoBao + "个淘宝订单," + orderListCount.tmall + "个天猫订单," + orderListCount.archive + "个存档订单。");
+    console.info("处理后的订单列表数据为:");
+    console.info(orderListTemp);
+
+    return orderListTemp;
+}
+
+//合并订单列表和订单详情数据
+function mergeDetailAndList(orderListData, orderDetailData) {
+    var isSame = null;
+    var orderListTemp = orderListData;
+
+    for (let orderItemIndex in orderDetailData) {
+        isSame = false;
+
+        //console.info("开始合并订单列表和订单详情数据[" + orderItemIndex + "]:");
+        //console.info("订单列表数据[" + orderItemIndex + "]", orderListData[orderItemIndex]);
+        //console.info("订单详情数据[" + orderItemIndex + "]", orderDetailData[orderItemIndex]);
+
+        //根据子订单ID以及商品分类和商品名称判断是否为同一条子订单 (注：天猫超市的此项参数为空！)
+        if (orderListData[orderItemIndex]["subOrderID"] === orderDetailData[orderItemIndex]["subOrderID"]) {
+            isSame = true;
+        } else if (orderListData[orderItemIndex]["SKUName"] === orderDetailData[orderItemIndex]["SKUName"]) {
+            if (orderListData[orderItemIndex]["productName"] === orderDetailData[orderItemIndex]["snapName"]) {
+                isSame = true;
+            } else if (orderListData[orderItemIndex]["snapName"] === orderDetailData[orderItemIndex]["snapName"]) {
+                isSame = true;
+            }
+        }
+
+        if (isSame === true) {
+            //修复订单列表中的数据缺失
+            if (orderListData[orderItemIndex]["snapURL"] === "") {
+                orderListTemp[orderItemIndex]["snapURL"] = orderDetailData[orderItemIndex]["snapURL"];
+                orderListTemp[orderItemIndex]["subOrderID"] = orderDetailData[orderItemIndex]["snapURL"].match(/ID=(\d*)/i)[1];
+                orderListTemp[orderItemIndex]["snapName"] = orderDetailData[orderItemIndex]["snapName"]; //！数据采集于订单详情页面！
+            }
+
+            //添加时间日期和物流信息
+            orderListTemp[orderItemIndex]["dateTime"] = orderDetailData[orderItemIndex]["dateTime"];
+            orderListTemp[orderItemIndex]["logisticsName"] = orderDetailData[orderItemIndex]["logisticsName"];
+            orderListTemp[orderItemIndex]["logisticsNum"] = orderDetailData[orderItemIndex]["logisticsNum"];
+        } else {
+            console.info("订单列表和订单详情数据合并结果[" + orderItemIndex + "]: 不相同！");
+            console.info("订单列表数据[" + orderItemIndex + "]", orderListData[orderItemIndex]);
+            console.info("订单详情数据[" + orderItemIndex + "]", orderDetailData[orderItemIndex]);
+        }
+    }
+
+    console.info("整合前的数据为:");
+    console.info("订单列表数据", orderListData);
+    console.info("订单详情数据", orderDetailData);
+
+    console.info("整合订单详情后的订单列表数据为:");
+    console.info(orderListTemp);
+
+    return orderListTemp;
+}
+
+//订单列表数据后处理: 可选功能处理和重定位
+function postprocessOrderList(orderListData) {
+    var orderListTemp = {};
+
+    if (httpGetResult.orderDetailTotal !== 0) {
+        orderHeaderList.push("日期时间");
+        orderHeaderList.push("物流公司");
+        orderHeaderList.push("物流单号");
+    }
+
+    for (let orderItemIndex in orderListData) {
+        orderListTemp[orderItemIndex] = [];
+
+        //选择图片尺寸
+        var picURL = orderListData[orderItemIndex]["picURL"];
+        if (imageDimensionsList[imageDimensionsIndex] === "800x800") {
+            picURL = picURL.replace(/_80x80.(jpg|png)/, "");
+        } else {
+            picURL = picURL.replace(/\d*x\d*(?=.(jpg|png))/, imageDimensionsList[imageDimensionsIndex]);
+        }
+
+        //Excel数据格式适配
+        const isEnableDataFormatAdaptation = document.getElementById("DataFormatAdaptationStatus").checked;
+        if (isEnableDataFormatAdaptation === true) {
+            var mainOrderID = orderListData[orderItemIndex]["mainOrderID"];
+            var subOrderID = orderListData[orderItemIndex]["subOrderID"];
+            var logisticsNum = orderListData[orderItemIndex]["logisticsNum"];
+
+            mainOrderID = '"' + mainOrderID + '\t"';
+            subOrderID = '"' + subOrderID + '\t"';
+
+            if (orderListData[orderItemIndex]["logisticsName"] !== undefined) {
+                logisticsNum = '"' + logisticsNum + '\t"';
+            }
+        }
+
+        //订单详情链接一致化
+        const isEnableUrlUniformization = document.getElementById("UrlUniformizationStatus").checked;
+        if (isEnableUrlUniformization === true) {
+            var DetailURL = orderListData[orderItemIndex]["DetailURL"];
+
+            const recentTaoBaoOrderDetailUrlPrefix = "buyertrade.taobao.com/trade/detail/trade_item_detail"; //最近的淘宝订单详情链接前缀
+            const recentTmallOrderDetailUrlPrefix = "trade.tmall.com/detail/orderDetail"; //最近的天猫订单详情链接前缀
+            const passedOrderDetailUrlPrefix = "tradearchive.taobao.com/trade/detail/trade_item_detail"; //过去的淘宝和天猫订单详情链接前缀
+
+            DetailURL = DetailURL.replace(recentTmallOrderDetailUrlPrefix, recentTaoBaoOrderDetailUrlPrefix);
+            DetailURL = DetailURL.replace(passedOrderDetailUrlPrefix, recentTaoBaoOrderDetailUrlPrefix);
+        }
+
+        //数据项重定位
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("下单日期")] = orderListData[orderItemIndex]["createDate"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("订单编号")] = mainOrderID;
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("子订单编号")] = subOrderID;
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("店铺名称")] = orderListData[orderItemIndex]["shopName"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("商品名称")] = orderListData[orderItemIndex]["productName"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("快照名称")] = orderListData[orderItemIndex]["snapName"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("分类名称")] = orderListData[orderItemIndex]["SKUName"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("主图链接")] = picURL;
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("商品链接")] = orderListData[orderItemIndex]["productURL"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("快照链接")] = orderListData[orderItemIndex]["snapURL"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("单价")] = orderListData[orderItemIndex]["price"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("数量")] = orderListData[orderItemIndex]["quantity"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("订单实付款")] = orderListData[orderItemIndex]["actualFee"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("商品退款状态")] = orderListData[orderItemIndex]["refundStatus"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("订单交易状态")] = orderListData[orderItemIndex]["tradeStatus"];
+        orderListTemp[orderItemIndex][orderHeaderList.indexOf("订单详情链接")] = DetailURL;
+
+        if (httpGetResult.orderDetailTotal !== 0) {
+            orderListTemp[orderItemIndex][orderHeaderList.indexOf("日期时间")] = orderListData[orderItemIndex]["dateTime"];
+
+            if (orderListData[orderItemIndex]["logisticsName"] !== undefined) {
+                orderListTemp[orderItemIndex][orderHeaderList.indexOf("物流公司")] = orderListData[orderItemIndex]["logisticsName"];
+                orderListTemp[orderItemIndex][orderHeaderList.indexOf("物流单号")] = logisticsNum;
+            }
+        }
+    }
+
+    console.info("进行可选功能处理和重定位后的订单列表数据为:");
+    console.info(orderListTemp);
+
+    return orderListTemp;
+}
+
+//解析订单详情数据
+function praseOrderDetailJSONData(orderItemIndex, JSONString, OrderDetailClass) {
+    var dateTime = "";
+    var mainOrderid = "";
+    var subOrderid = "";
+    var snapName = "";
+    var SKUName = "";
+    var snapURL = "";
+    var logisticsName = "";
+    var logisticsNum = "";
+
+    var index = 0;
+    var orderItemIndexTemp = "";
+
+    var JSONData = {};
+    var orderDetailTemp = {};
+
+    //解析订单详情数据: 淘宝
+    if (OrderDetailClass === "taoBaoOrderDetail") {
+        JSONString = JSONString.replace(/\\u/g, "%u");
+        JSONString = JSONString.replace(/\\(.)/g, "$1");
+        JSONString = unescape(JSONString);
+        //console.info("详情网页响应文本 JSON数据 字符串 淘宝["+orderItemIndex+"]:" + JSONString);
+
+        JSONData = JSON.parse(JSONString);
+        //console.info("详情网页响应文本 JSON数据 匹配数据 淘宝[" + orderItemIndex + "]:" + JSONData);
+        //console.info(JSONData);
+
+        dateTime = JSONData.orderBar.nodes[0].date;
+        mainOrderid = JSONData.mainOrder.id;
+
+        if (JSONData.mainOrder.statusInfo.text.includes("交易关闭") !== true) {
+            logisticsName = JSONData.deliveryInfo.logisticsName;
+            logisticsNum = JSONData.deliveryInfo.logisticsNum;
+        }
+
+        for (let subOrderItem of JSONData.mainOrder.subOrders) {
+            index++;
+
+            snapName = subOrderItem.itemInfo.title;
+
+            SKUName = "";
+            if (subOrderItem.itemInfo.hasOwnProperty("skuText") === true) {
+                for (let skuTextItem of subOrderItem.itemInfo.skuText[0].content) {
+                    SKUName += skuTextItem.value.name;
+                    SKUName += skuTextItem.value.value;
+                    SKUName += " ";
+                }
+                SKUName = SKUName.replace(/颜色分类：?/, " ");
+                SKUName = SKUName.trim();
+            }
+
+            snapURL = "https:" + subOrderItem.itemInfo.auctionUrl + "&snapShot=true";
+
+            if (snapURL.match(/ID=\d*/i) !== null) {
+                subOrderid = snapURL.match(/ID=(\d*)/i)[1];
+            }
+
+            orderItemIndexTemp = mainOrderid + index;
+            orderDetailTemp[orderItemIndexTemp] = {
+                ["dateTime"]: dateTime,
+                ["mainOrderID"]: mainOrderid,
+                ["subOrderID"]: subOrderid,
+                ["snapName"]: snapName,
+                ["SKUName"]: SKUName,
+                ["snapURL"]: snapURL,
+                ["logisticsName"]: logisticsName,
+                ["logisticsNum"]: logisticsNum,
+            };
+        }
+        //解析订单详情数据: 天猫
+    } else if (OrderDetailClass === "tmallOrderDetail") {
+        JSONData = JSON.parse(JSONString);
+        //console.info("详情网页响应文本 JSON数据 匹配数据 天猫[" + orderItemIndex + "]:" + JSONData);
+        //console.info(JSONData);
+
+        //解析订单详情数据: 非天猫超市
+        if (JSONData.basic.lists[2].content[0].text.search("天猫超市") === -1) {
+            if (JSONData.basic.lists[2].content.hasOwnProperty("1") === true) {
+                dateTime = JSONData.basic.lists[2].content[1].moreList[1].content[0].text;
+                mainOrderid = JSONData.basic.lists[2].content[0].text;
+            } else {
+                dateTime = JSONData.basic.lists[4].content[1].moreList[1].content[0].text;
+                mainOrderid = JSONData.basic.lists[4].content[0].text;
+            }
+
+            if (JSONData.orders.list[0].status[0].statusInfo[0].text !== "已取消") {
+                logisticsName = JSONData.orders.list[0].logistic.content[0].companyName;
+                logisticsNum = JSONData.orders.list[0].logistic.content[0].mailNo;
+            }
+
+            for (let subOrderItem of JSONData.orders.list[0].status) {
+                index++;
+
+                snapName = subOrderItem.subOrders[0].itemInfo.title;
+
+                SKUName = "";
+                if (subOrderItem.subOrders[0].itemInfo.hasOwnProperty("skuText") === true) {
+                    for (let skuTextItem of subOrderItem.subOrders[0].itemInfo.skuText) {
+                        if (skuTextItem.key === "发货时间") {
+                            continue;
+                        }
+                        SKUName += skuTextItem.key;
+                        SKUName += "：";
+                        SKUName += skuTextItem.content[0].text;
+                        SKUName += " ";
+                    }
+                    SKUName = SKUName.replace(/颜色分类：?/, " ");
+                    SKUName = SKUName.trim();
+                }
+
+                snapURL = "https:" + subOrderItem.subOrders[0].itemInfo.snapUrl + "&snapShot=true";
+
+                if (snapURL.match(/ID=\d*/i) !== null) {
+                    subOrderid = snapURL.match(/ID=(\d*)/i)[1];
+                }
+
+                orderItemIndexTemp = mainOrderid + index;
+                orderDetailTemp[orderItemIndexTemp] = {
+                    ["dateTime"]: dateTime,
+                    ["mainOrderID"]: mainOrderid,
+                    ["subOrderID"]: subOrderid,
+                    ["snapName"]: snapName,
+                    ["SKUName"]: SKUName,
+                    ["snapURL"]: snapURL,
+                    ["logisticsName"]: logisticsName,
+                    ["logisticsNum"]: logisticsNum,
+                };
+            }
+            //解析订单详情数据: 天猫超市
+        } else {
+            //console.info("详情网页响应文本 JSON数据 匹配数据 天猫超市[" + orderItemIndex + "]:" + JSONData);
+            //console.info(JSONData);
+
+            dateTime = JSONData.basic.lists[1].content[1].moreList[1].content[0].text;
+            mainOrderid = JSONData.basic.lists[1].content[0].text;
+
+            for (let subOrderItem of JSONData.orders.list) {
+                index++;
+
+                if (subOrderItem.status[0].statusInfo[0].text !== "已取消") {
+                    logisticsName = subOrderItem.logistic.content[0].companyName;
+                    logisticsNum = subOrderItem.logistic.content[0].mailNo;
+                }
+
+                snapName = subOrderItem.status[0].subOrders[0].itemInfo.title;
+
+                SKUName = "";
+                if (subOrderItem.status[0].subOrders[0].itemInfo.hasOwnProperty("skuText") === true) {
+                    for (let skuTextItem of subOrderItem.status[0].subOrders[0].itemInfo.skuText) {
+                        if (skuTextItem.key === "发货时间") {
+                            break;
+                        }
+                        SKUName += skuTextItem.key;
+                        SKUName += "：";
+                        SKUName += skuTextItem.content[0].text;
+                        SKUName += " ";
+                    }
+                    SKUName = SKUName.replace(/颜色分类：?/, " ");
+                    SKUName = SKUName.trim();
+                }
+
+                snapURL = "https:" + subOrderItem.status[0].subOrders[0].itemInfo.snapUrl + "&snapShot=true";
+
+                if (snapURL.match(/ID=\d*/i) !== null) {
+                    subOrderid = snapURL.match(/ID=(\d*)/i)[1];
+                }
+
+                orderItemIndexTemp = mainOrderid + index;
+                orderDetailTemp[orderItemIndexTemp] = {
+                    ["dateTime"]: dateTime,
+                    ["mainOrderID"]: mainOrderid,
+                    ["subOrderID"]: subOrderid,
+                    ["snapName"]: snapName,
+                    ["SKUName"]: SKUName,
+                    ["snapURL"]: snapURL,
+                    ["logisticsName"]: logisticsName,
+                    ["logisticsNum"]: logisticsNum,
+                };
+            }
+        }
+    } else {
+        console.info("详情网页响应文本 JSON数据[" + orderItemIndex + "]: 不支持的订单详情类型!");
+    }
+
+    //过滤黑名单项：如"保险服务"、"增值服务"、"买家秀"等;
+    const isEnableBlackList = document.getElementById("BlackListStatus").checked;
+    if (isEnableBlackList === true && blackList.length > 0) {
+        for (let orderItemIndex in orderDetailTemp) {
+            var ProductName = orderDetailTemp[orderItemIndex]["snapName"];
+            var searchResult = false;
+
+            for (let item of blackList) {
+                if (ProductName.search(item) !== -1) {
+                    searchResult = true;
+                    break;
+                }
+            }
+
+            if (searchResult === true) {
+                continue;
+            } else {
+                orderDetail[orderItemIndex] = orderDetailTemp[orderItemIndex];
+            }
+        }
+    }
+
+    console.info("正在获取订单详情数据...");
+    //console.info("详情网页响应文本 JSON数据 目标数据[" + orderItemIndex + "]:");
+    //console.info(orderDetailTemp);
+}
+
 //处理订单数据
 function processOrderList(order) {
     var orderData = {};
+
     var textContent = order.textContent;
     var pattern = /(\d{4}-\d{2}-\d{2})订单号: ()/;
     var isExist = pattern.exec(textContent);
@@ -857,37 +1411,23 @@ function processOrderList(order) {
 
         var index = 0;
 
-        var ShopNameQuery = null;
-        var ProductPicUrlQuery = null;
-        var ProductUrlQuery = null;
-        var ProductNameQuery = null;
-        var snapshotUrlQuery = null;
-        var SKUNameQuery = null;
-        var RealPriceQuery = null;
-        var quantityQuery = null;
-        var refundStatusQuery = null;
-        var actualFeeQuery = null;
-        var tradeStatusQuery = null;
-        var DetailUrlQuery1 = null;
-        var DetailUrlQuery2 = null;
-
         while (true) {
             if (index === 0) {
-                ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
-                actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
-                tradeStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0.0']");
-                DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
-                DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
+                var ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
+                var actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
+                var tradeStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.0.0.0']");
+                var DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
+                var DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
             }
 
-            ProductPicUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0.0']");
-            ProductUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0']");
-            ProductNameQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0.1']");
-            snapshotUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.1']");
-            SKUNameQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.1']");
-            RealPriceQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$1.0.1.1']");
-            quantityQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$2.0.0']");
-            refundStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
+            var ProductPicUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0.0']");
+            var ProductUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0']");
+            var ProductNameQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0.1']");
+            var snapshotUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.1']");
+            var SKUNameQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.1']");
+            var RealPriceQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$1.0.1.1']");
+            var quantityQuery = order.querySelector("p[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$2.0.0']");
+            var refundStatusQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$3.0.$0.0.0.$text']");
 
             index++;
             var orderItemIndex = id + index;
@@ -929,12 +1469,24 @@ function processOrderList(order) {
             var orderInfoId = id;
             var orderInfoDate = date;
             var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
-            var subOrdersIteminfoId = orderItemIndex;
             var subOrdersIteminfoPicUrl = ProductPicUrlQuery === null ? "" : ProductPicUrlQuery.src;
             var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
             var subOrdersIteminfoProductName = ProductNameQuery.textContent;
             var subOrdersIteminfoSnapUrl = snapshotUrlQuery === null ? "" : snapshotUrlQuery.href;
-            var subOrdersIteminfoSKUName = SKUNameQuery === null ? "" : SKUNameQuery.innerText;
+
+            var subOrdersIteminfoId = "";
+            if (subOrdersIteminfoSnapUrl.match(/ID=\d*/i) !== null) {
+                subOrdersIteminfoId = subOrdersIteminfoSnapUrl.match(/ID=(\d*)/i)[1];
+            }
+
+            var subOrdersIteminfoSKUName = "";
+            if (SKUNameQuery !== null) {
+                var SKUNameChildrenList = SKUNameQuery.children;
+                for (let SKUNameChildrenItem of SKUNameChildrenList) {
+                    subOrdersIteminfoSKUName += SKUNameChildrenItem.innerText + " ";
+                }
+            }
+
             var subOrdersPriceinfoRealPrice = RealPriceQuery === null ? "" : RealPriceQuery.textContent;
             var subOrdersQuantityCount = quantityQuery === null ? "" : quantityQuery.textContent;
             var subOrdersRefund = refundStatusQuery === null ? "" : refundStatusQuery.innerText === "查看退款" ? "退款" : "";
@@ -942,60 +1494,33 @@ function processOrderList(order) {
             var statusInfoStatus = tradeStatusQuery === null ? "" : tradeStatusQuery.textContent;
             var statusInfoDetailUrl = DetailUrlQuery1 === null ? (DetailUrlQuery2 === null ? "" : DetailUrlQuery2.href) : DetailUrlQuery1.href;
 
-            var subOrdersSnapshotProductName = null;
-
-            //选择图片尺寸
-            if (imageDimensionsList[imageDimensionsIndex] === "800x800") {
-                subOrdersIteminfoPicUrl = subOrdersIteminfoPicUrl.replace(/_80x80.(jpg|png)/, "");
-            } else {
-                subOrdersIteminfoPicUrl = subOrdersIteminfoPicUrl.replace(/\d*x\d*(?=.(jpg|png))/, imageDimensionsList[imageDimensionsIndex]);
-            }
-
-            //Excel数据格式适配
-            const isEnableDataFormatAdaptation = document.getElementById("DataFormatAdaptationStatus").checked;
-            if (isEnableDataFormatAdaptation === true) {
-                orderInfoId = '"' + orderInfoId + '\t"';
-                subOrdersIteminfoId = '"' + subOrdersIteminfoId + '\t"';
-            }
-
-            //订单详情链接一致化
-            const isEnableUrlUniformization = document.getElementById("UrlUniformizationStatus").checked;
-            if (isEnableUrlUniformization === true) {
-                //过去的淘宝和天猫订单详情链接为：https://tradearchive.taobao.com/trade/detail/trade_item_detail.htm?bizOrderId=<id>
-                const recentTaoBaoOrderDetailUrlPrefix = "buyertrade.taobao.com/trade/detail/trade_item_detail"; //最近的淘宝订单详情链接前缀
-                const recentTmallOrderDetailUrlPrefix = "trade.tmall.com/detail/orderDetail"; //最近的天猫订单详情链接前缀
-                const passedOrderDetailUrlPrefix = "tradearchive.taobao.com/trade/detail/trade_item_detail"; //过去的淘宝和天猫订单详情链接前缀
-
-                statusInfoDetailUrl = statusInfoDetailUrl.replace(recentTaoBaoOrderDetailUrlPrefix, passedOrderDetailUrlPrefix);
-                statusInfoDetailUrl = statusInfoDetailUrl.replace(recentTmallOrderDetailUrlPrefix, passedOrderDetailUrlPrefix);
-            }
+            var subOrdersSnapshotProductName = "";
 
             //精简数据
             subOrdersIteminfoProductUrl = subOrdersIteminfoProductUrl.replace(/&_u=\w*/, "");
-            //subOrdersIteminfoSnapUrl = subOrdersIteminfoSnapUrl.replace(/&snapShot=true/, "");
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, " ");
+            subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.trim();
             statusInfoDetailUrl = statusInfoDetailUrl.replace(/&route_to=tm1/, "");
 
             //项目标题在序列中的位置自动同步到项目数据在序列中的位置
-            var orderDataItemData = [];
-            orderDataItemData[orderHeaderList.indexOf("下单日期")] = orderInfoDate;
-            orderDataItemData[orderHeaderList.indexOf("订单编号")] = orderInfoId;
-            orderDataItemData[orderHeaderList.indexOf("子订单编号")] = subOrdersIteminfoId;
-            orderDataItemData[orderHeaderList.indexOf("店铺名称")] = sellerInfoShopName;
-            orderDataItemData[orderHeaderList.indexOf("商品名称")] = subOrdersIteminfoProductName;
-            orderDataItemData[orderHeaderList.indexOf("快照商品名称")] = subOrdersSnapshotProductName;
-            orderDataItemData[orderHeaderList.indexOf("商品分类")] = subOrdersIteminfoSKUName;
-            orderDataItemData[orderHeaderList.indexOf("商品主图")] = subOrdersIteminfoPicUrl;
-            orderDataItemData[orderHeaderList.indexOf("商品链接")] = subOrdersIteminfoProductUrl;
-            orderDataItemData[orderHeaderList.indexOf("交易快照")] = subOrdersIteminfoSnapUrl;
-            orderDataItemData[orderHeaderList.indexOf("单价")] = subOrdersPriceinfoRealPrice;
-            orderDataItemData[orderHeaderList.indexOf("数量")] = subOrdersQuantityCount;
-            orderDataItemData[orderHeaderList.indexOf("实付款")] = payInfoActualFee;
-            orderDataItemData[orderHeaderList.indexOf("退款状态")] = subOrdersRefund;
-            orderDataItemData[orderHeaderList.indexOf("交易状态")] = statusInfoStatus;
-            orderDataItemData[orderHeaderList.indexOf("订单详情链接")] = statusInfoDetailUrl;
-
-            orderData[orderItemIndex] = orderDataItemData;
+            orderData[orderItemIndex] = {
+                ["createDate"]: orderInfoDate,
+                ["mainOrderID"]: orderInfoId,
+                ["subOrderID"]: subOrdersIteminfoId,
+                ["shopName"]: sellerInfoShopName,
+                ["productName"]: subOrdersIteminfoProductName,
+                ["snapName"]: subOrdersSnapshotProductName,
+                ["SKUName"]: subOrdersIteminfoSKUName,
+                ["picURL"]: subOrdersIteminfoPicUrl,
+                ["productURL"]: subOrdersIteminfoProductUrl,
+                ["snapURL"]: subOrdersIteminfoSnapUrl,
+                ["price"]: subOrdersPriceinfoRealPrice,
+                ["quantity"]: subOrdersQuantityCount,
+                ["actualFee"]: payInfoActualFee,
+                ["refundStatus"]: subOrdersRefund,
+                ["tradeStatus"]: statusInfoStatus,
+                ["DetailURL"]: statusInfoDetailUrl,
+            };
         }
     }
     return orderData;
