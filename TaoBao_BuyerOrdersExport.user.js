@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      2.0.0
+// @version      2.0.1
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类名称、商品主图链接、商品链接、商品交易快照链接、单价、数量、商品退款状态、订单实付款、订单交易状态、订单详情链接。并支持添加额外的下单日期时间、快递物流公司、快递物流单号信息。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键词过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -1500,7 +1500,6 @@ function processOrderList(order) {
             subOrdersIteminfoProductUrl = subOrdersIteminfoProductUrl.replace(/&_u=\w*/, "");
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, " ");
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.trim();
-            statusInfoDetailUrl = statusInfoDetailUrl.replace(/&route_to=tm1/, "");
 
             //项目标题在序列中的位置自动同步到项目数据在序列中的位置
             orderData[orderItemIndex] = {
