@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      2.0.1
+// @version      2.0.2
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类名称、商品主图链接、商品链接、商品交易快照链接、单价、数量、商品退款状态、订单实付款、订单交易状态、订单详情链接。并支持添加额外的下单日期时间、快递物流公司、快递物流单号信息。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键词过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -1412,6 +1412,7 @@ function processOrderList(order) {
         var index = 0;
 
         while (true) {
+            //定位HTML数据
             if (index === 0) {
                 var ShopNameQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:0.0.1.0.1']");
                 var actualFeeQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$4.0.0.2.0.1']");
@@ -1419,7 +1420,6 @@ function processOrderList(order) {
                 var DetailUrlQuery1 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$0.0.0']");
                 var DetailUrlQuery2 = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$5.0.1.$1.0.0']");
             }
-
             var ProductPicUrlQuery = order.querySelector("img[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.0.0.0.0']");
             var ProductUrlQuery = order.querySelector("a[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0']");
             var ProductNameQuery = order.querySelector("span[data-reactid='.0.7:$order-" + id + ".$" + id + ".0.1:1:0.$" + index + ".$0.0.1.0.0.1']");
@@ -1436,18 +1436,45 @@ function processOrderList(order) {
                 break;
             }
 
+            //解析HTML数据
+            var orderInfoId = id;
+            var orderInfoDate = date;
+            var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
+            var subOrdersIteminfoPicUrl = ProductPicUrlQuery === null ? "" : ProductPicUrlQuery.src;
+            var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
+            var subOrdersIteminfoProductName = ProductNameQuery.textContent;
+            var subOrdersIteminfoSnapUrl = snapshotUrlQuery === null ? "" : snapshotUrlQuery.href;
+            var subOrdersIteminfoId = "";
+            if (subOrdersIteminfoSnapUrl.match(/ID=\d*/i) !== null) {
+                subOrdersIteminfoId = subOrdersIteminfoSnapUrl.match(/ID=(\d*)/i)[1];
+            }
+            var subOrdersIteminfoSKUName = "";
+            if (SKUNameQuery !== null) {
+                var SKUNameChildrenList = SKUNameQuery.children;
+                for (let SKUNameChildrenItem of SKUNameChildrenList) {
+                    subOrdersIteminfoSKUName += SKUNameChildrenItem.innerText + " ";
+                }
+            }
+            var subOrdersPriceinfoRealPrice = RealPriceQuery === null ? "" : RealPriceQuery.textContent;
+            var subOrdersQuantityCount = quantityQuery === null ? "" : quantityQuery.textContent;
+            var subOrdersRefund = refundStatusQuery === null ? "" : refundStatusQuery.innerText === "查看退款" ? "退款" : "";
+            var payInfoActualFee = actualFeeQuery === null ? "" : actualFeeQuery.textContent;
+            var statusInfoStatus = tradeStatusQuery === null ? "" : tradeStatusQuery.textContent;
+            var statusInfoDetailUrl = DetailUrlQuery1 === null ? (DetailUrlQuery2 === null ? "" : DetailUrlQuery2.href) : DetailUrlQuery1.href;
+            var subOrdersSnapshotProductName = "";
+
             //过滤黑名单项：如"保险服务"、"增值服务"、"买家秀"等;
             const isEnableBlackList = document.getElementById("BlackListStatus").checked;
             if (isEnableBlackList === true && blackList.length > 0) {
                 var searchResult = false;
 
                 for (let item of blackList) {
-                    if (ProductNameQuery.textContent.search(item) !== -1) {
+                    if (subOrdersIteminfoProductName.search(item) !== -1) {
                         searchResult = true;
                         break;
                     }
 
-                    if (ShopNameQuery.innerText.search(item) !== -1) {
+                    if (sellerInfoShopName.search(item) !== -1) {
                         searchResult = true;
                         break;
                     }
@@ -1465,36 +1492,6 @@ function processOrderList(order) {
                 SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*).*?：/g, "&$1;");
                 SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/,/g, "，");
             }
-
-            var orderInfoId = id;
-            var orderInfoDate = date;
-            var sellerInfoShopName = ShopNameQuery === null ? "" : ShopNameQuery.innerText;
-            var subOrdersIteminfoPicUrl = ProductPicUrlQuery === null ? "" : ProductPicUrlQuery.src;
-            var subOrdersIteminfoProductUrl = ProductUrlQuery === null ? "" : ProductUrlQuery.href;
-            var subOrdersIteminfoProductName = ProductNameQuery.textContent;
-            var subOrdersIteminfoSnapUrl = snapshotUrlQuery === null ? "" : snapshotUrlQuery.href;
-
-            var subOrdersIteminfoId = "";
-            if (subOrdersIteminfoSnapUrl.match(/ID=\d*/i) !== null) {
-                subOrdersIteminfoId = subOrdersIteminfoSnapUrl.match(/ID=(\d*)/i)[1];
-            }
-
-            var subOrdersIteminfoSKUName = "";
-            if (SKUNameQuery !== null) {
-                var SKUNameChildrenList = SKUNameQuery.children;
-                for (let SKUNameChildrenItem of SKUNameChildrenList) {
-                    subOrdersIteminfoSKUName += SKUNameChildrenItem.innerText + " ";
-                }
-            }
-
-            var subOrdersPriceinfoRealPrice = RealPriceQuery === null ? "" : RealPriceQuery.textContent;
-            var subOrdersQuantityCount = quantityQuery === null ? "" : quantityQuery.textContent;
-            var subOrdersRefund = refundStatusQuery === null ? "" : refundStatusQuery.innerText === "查看退款" ? "退款" : "";
-            var payInfoActualFee = actualFeeQuery === null ? "" : actualFeeQuery.textContent;
-            var statusInfoStatus = tradeStatusQuery === null ? "" : tradeStatusQuery.textContent;
-            var statusInfoDetailUrl = DetailUrlQuery1 === null ? (DetailUrlQuery2 === null ? "" : DetailUrlQuery2.href) : DetailUrlQuery1.href;
-
-            var subOrdersSnapshotProductName = "";
 
             //精简数据
             subOrdersIteminfoProductUrl = subOrdersIteminfoProductUrl.replace(/&_u=\w*/, "");
