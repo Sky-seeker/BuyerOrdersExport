@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         淘宝买家订单数据导出
 // @namespace    https://github.com/Sky-seeker/BuyerOrdersExport
-// @version      2.0.2
+// @version      2.0.3
 // @description  “淘宝买家订单数据导出”最初基于“淘宝买家订单导出-颜色分类”添加了“商品主图”，修改和修复了一些细节问题，当前版本与之前已经有了较大的变动。导出的项目包括下单日期、订单编号、子订单编号、店铺名称、商品名称、快照商品名称、商品颜色分类名称、商品主图链接、商品链接、商品交易快照链接、单价、数量、商品退款状态、订单实付款、订单交易状态、订单详情链接。并支持添加额外的下单日期时间、快递物流公司、快递物流单号信息。导出的订单数据为CSV文件。在导出淘宝买家订单数据时，支持一些可选功能，如商品名称和店铺名称黑名单关键词过滤，快照商品名称获取以及获取时的随机延时，Excel 数据格式适配，订单详情链接一致化。支持项目标题次序自定义，支持图片链接尺寸选择，支持项目标题和黑名单列表的数据的本地存储。使用的过程中会有反馈，如按钮的可用状态和颜色变化，以及窗口右下角的气泡通知等。
 // @author       梦幻之心星
 // @match        https://buyertrade.taobao.com/trade/*
@@ -889,6 +889,7 @@ function getDataFromSnapShot(orderItemIndex, orderItemDataIndex, snapUrl) {
                     }
                 }
 
+                ShotProductName = ShotProductName.replace(/\s{2,}/g, " ");
                 //console.info("快照商品名称[" + orderItemIndex + "]:" + ShotProductName);
                 console.info("正在获取快照商品名称...");
 
@@ -1436,6 +1437,14 @@ function processOrderList(order) {
                 break;
             }
 
+            //修复淘宝订单页面中的字符实体显示错误和英文逗号导致的CSV导入Excel后数据错行；
+            ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
+            ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/,/g, "，");
+            if (SKUNameQuery !== null) {
+                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*).*?：/g, "&$1;");
+                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/,/g, "，");
+            }
+
             //解析HTML数据
             var orderInfoId = id;
             var orderInfoDate = date;
@@ -1452,8 +1461,9 @@ function processOrderList(order) {
             if (SKUNameQuery !== null) {
                 var SKUNameChildrenList = SKUNameQuery.children;
                 for (let SKUNameChildrenItem of SKUNameChildrenList) {
-                    subOrdersIteminfoSKUName += SKUNameChildrenItem.innerText + " ";
+                    subOrdersIteminfoSKUName += SKUNameChildrenItem.innerText.trim() + " ";
                 }
+                subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.trim();
             }
             var subOrdersPriceinfoRealPrice = RealPriceQuery === null ? "" : RealPriceQuery.textContent;
             var subOrdersQuantityCount = quantityQuery === null ? "" : quantityQuery.textContent;
@@ -1485,18 +1495,11 @@ function processOrderList(order) {
                 }
             }
 
-            //修复淘宝订单页面中的字符实体显示错误和英文逗号导致的CSV导入Excel后数据错行；
-            ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*)/g, "&$1");
-            ProductNameQuery.innerHTML = ProductNameQuery.innerHTML.replace(/,/g, "，");
-            if (SKUNameQuery !== null) {
-                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/&amp;([a-zA-Z]*).*?：/g, "&$1;");
-                SKUNameQuery.innerHTML = SKUNameQuery.innerHTML.replace(/,/g, "，");
-            }
-
             //精简数据
             subOrdersIteminfoProductUrl = subOrdersIteminfoProductUrl.replace(/&_u=\w*/, "");
             subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/颜色分类：?/, " ");
-            subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.trim();
+            subOrdersIteminfoProductName = subOrdersIteminfoProductName.replace(/\s{2,}/g, " ");
+            subOrdersIteminfoSKUName = subOrdersIteminfoSKUName.replace(/\s{2,}/g, " ");
 
             //项目标题在序列中的位置自动同步到项目数据在序列中的位置
             orderData[orderItemIndex] = {
